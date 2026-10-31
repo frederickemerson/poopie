@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 
 from engine.ingest.ad_xml import ParsedAD, parse_ad_xml
 from engine.ingest.docket_ids import DocketIds, parse_docket_ids
+from engine.ingest import provenance
 from engine.ingest.fr_client import FederalRegisterClient
 from engine.ingest.make_normalize import normalize_make
 from engine.ingest.nprm_xlsx import SpreadsheetLoad
@@ -54,6 +55,7 @@ class RevisionRecord:
     parsed: ParsedAD | None = None
     refs: RevisionRefs | None = None
     affected: AffectedADs | None = None
+    provenance: provenance.Provenance | None = None
 
     @property
     def ad_number(self) -> str:
@@ -98,6 +100,7 @@ class Corpus:
     parse_notes: list[str] = field(default_factory=list)
     dockets_queried: int = 0
     documents_seen: int = 0
+    provenance_drift: list[str] = field(default_factory=list)
 
 
 def _date(value: str | None) -> dt.date | None:
@@ -180,6 +183,8 @@ def collect(
 
     client.prefetch_xml([(r.revision_id, r.full_text_xml_url or "") for r in records])
 
+    prior_manifest = provenance.read_manifest()
+
     for record in records:
         if record.full_text_xml_url:
             path = client.document_xml(record.revision_id, record.full_text_xml_url)
@@ -189,6 +194,15 @@ def collect(
             corpus.xml_unavailable.append(record.revision_id)
             corpus.revisions.append(record)
             continue
+        record.provenance, drift = provenance.reconcile(
+            record.revision_id,
+            record.full_text_xml_url,
+            path,
+            client.fetched.get(record.revision_id),
+            prior_manifest.get(record.revision_id),
+        )
+        if drift:
+            corpus.provenance_drift.append(drift)
         parsed = parse_ad_xml(path, record.revision_id)
         record.parsed = parsed
         corpus.parse_notes.extend(parsed.notes)

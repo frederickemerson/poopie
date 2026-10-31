@@ -20,6 +20,8 @@ from __future__ import annotations
 import calendar
 import concurrent.futures as futures
 import json
+import os
+import threading
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -27,6 +29,7 @@ from pathlib import Path
 
 import requests
 
+from engine.ingest import provenance
 from engine.paths import FR_INDEX_CACHE, FR_XML_CACHE
 
 API = "https://www.federalregister.gov/api/v1/documents.json"
@@ -75,6 +78,9 @@ class FederalRegisterClient:
         self.sleep_seconds = sleep_seconds
         self.offline = offline
         self.stats = FetchStats()
+        #: Provenance of documents downloaded by THIS client, by revision_id.
+        self.fetched: dict[str, provenance.Provenance] = {}
+        self._fetched_lock = threading.Lock()
 
     # ---------------------------------------------------------------- index
 
@@ -211,7 +217,14 @@ class FederalRegisterClient:
                 f"{document_number}: HTTP {response.status_code} for {url}"
             )
             return None
-        path.write_bytes(response.content)
+        # Hash the raw body exactly as received, before anything decodes it, and
+        # write it atomically so a concurrent reader never sees a partial file.
+        record = provenance.from_fetch(document_number, url, response.content, path)
+        temp = path.with_name(path.name + ".part")
+        temp.write_bytes(response.content)
+        os.replace(temp, path)
+        with self._fetched_lock:
+            self.fetched[document_number] = record
         self.stats.xml_downloads += 1
         time.sleep(self.sleep_seconds)
         return path

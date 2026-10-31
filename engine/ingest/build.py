@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from engine import paths  # noqa: E402
 from engine.ingest.collect import Corpus, RevisionRecord, collect  # noqa: E402
 from engine.ingest.emit import GraphWriter, edge_type_named, write_jsonl  # noqa: E402
+from engine.ingest import provenance  # noqa: E402
 from engine.ingest.fr_client import FederalRegisterClient  # noqa: E402
 from engine.ingest.nprm_xlsx import SpreadsheetLoad, load_nprm_rows, nprm_id_for  # noqa: E402
 from engine.ingest.supersession import (  # noqa: E402
@@ -82,6 +83,17 @@ def _sheet_by_docket(load: SpreadsheetLoad) -> dict[str, list]:
         for docket in row.docket_ids:
             out[docket].append(row)
     return out
+
+
+def _provenance_fields(record: RevisionRecord) -> dict:
+    prov = record.provenance
+    if prov is None:  # no XML available: there are no source bytes to pin
+        return {"content_sha256": None, "retrieved_at": None, "source_bytes": None}
+    return {
+        "content_sha256": prov.content_sha256,
+        "retrieved_at": prov.retrieved_at,
+        "source_bytes": prov.source_bytes,
+    }
 
 
 def emit(corpus: Corpus, load: SpreadsheetLoad, chain: SupersessionResult) -> dict:
@@ -184,6 +196,7 @@ def emit(corpus: Corpus, load: SpreadsheetLoad, chain: SupersessionResult) -> di
                         "full_text_xml_url": record.full_text_xml_url,
                         "is_current": chain.is_current.get(record.revision_id, False),
                         "superseded_by": chain.superseded_by.get(record.revision_id),
+                        **_provenance_fields(record),
                     },
                 )
                 writer.edge("HAS_REVISION", "AD", ad_number, "Revision", record.revision_id)
@@ -364,6 +377,13 @@ def _report(
         "skipped_non_ad_sample": corpus.skipped_non_ad[:10],
         "xml_unavailable": corpus.xml_unavailable,
         "parse_notes": corpus.parse_notes,
+        "provenance": {
+            "with_retrieved_at": sum(1 for p in (r.provenance for r in corpus.revisions) if p and p.retrieved_at),
+            "hash_only_unknown_retrieved_at": sum(
+                1 for p in (r.provenance for r in corpus.revisions) if p and not p.retrieved_at
+            ),
+            "drift": corpus.provenance_drift,
+        },
         "dockets_queried_outside_window": corpus.dockets_queried,
     }
 
@@ -380,7 +400,15 @@ def main(argv: list[str] | None = None) -> int:
         help="do not look up final rules for spreadsheet dockets outside the window",
     )
     parser.add_argument("--limit", type=int, default=None, help="cap documents, for smoke runs")
+    parser.add_argument(
+        "--verify-provenance",
+        action="store_true",
+        help="re-hash cached XML against data/build/provenance.jsonl, no network; "
+        "exit 1 on changed or missing files",
+    )
     args = parser.parse_args(argv)
+    if args.verify_provenance:
+        return provenance.run_verify_cli()
 
     paths.ensure_dirs()
     load = load_nprm_rows(paths.NPRM_XLSX)
@@ -395,6 +423,8 @@ def main(argv: list[str] | None = None) -> int:
         limit=args.limit,
     )
     chain = _chain(corpus)
+    held = [r.provenance for r in corpus.revisions if r.provenance is not None]
+    provenance.write_manifest(provenance.merge_manifest(provenance.read_manifest(), held))
     report = emit(corpus, load, chain)
     report["window"] = {"since": args.since, "until": args.until}
     report["fetch"] = {
@@ -407,6 +437,8 @@ def main(argv: list[str] | None = None) -> int:
     paths.INGEST_REPORT_JSON.write_text(json.dumps(report, indent=1), encoding="utf-8")
     print(json.dumps({k: report[k] for k in ("nodes", "edges", "delegation", "nprm")}, indent=1))
     print(f"report -> {paths.INGEST_REPORT_JSON}")
+    for note in corpus.provenance_drift:
+        print(f"PROVENANCE DRIFT: {note}", file=sys.stderr)
     return 0
 
 

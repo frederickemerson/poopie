@@ -21,7 +21,10 @@ from engine.paths import BUILD
 from engine.rules.engine import Decision, decide
 
 RULES_PATH = BUILD / "rules.jsonl"
-DELEGATIONS_PATH = BUILD / "delegations.jsonl"
+# Canonical name, written by `python3 -m engine.rules extract`. An earlier
+# duplicate CLI wrote the same records to delegations.jsonl, so the API and the
+# verifier read different files and silently disagreed; that CLI is deleted.
+DELEGATIONS_PATH = BUILD / "externals.jsonl"
 AIRCRAFT_PATH = BUILD / "nodes.aircraft.jsonl"
 
 

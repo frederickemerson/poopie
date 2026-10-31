@@ -22,6 +22,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from contracts.contract import validate_event
+from engine.api.answer import build_envelope, write_answer
 from engine.api.applicability import ApplicabilityStore, decide_for_query, fleet_matrix
 from engine.graph.stage import annotate
 from engine.llm.client import LLMClient, LLMUnavailable, have_api_key
@@ -32,6 +33,7 @@ from engine.retrieval.index import load_index
 from engine.retrieval.plan import plan_query
 from engine.retrieval.search import search
 from engine.verify.gate import evaluate_gate
+from engine.verify.verifier import verify
 
 app = FastAPI(title="AD traceability engine")
 app.add_middleware(
@@ -96,6 +98,18 @@ def _revision_stage(revision_id: str | None) -> dict[str, Any] | None:
         return None
     as_dict = record if isinstance(record, dict) else getattr(record, "__dict__", {})
     return annotate(dict(as_dict))
+
+
+def _unreviewed_rules(revision_id: str | None) -> int:
+    """How many rules behind this answer are machine-extracted, not reviewed.
+
+    The envelope states this because a rule nobody has checked is a real
+    limitation of the answer, not an implementation detail.
+    """
+    if not revision_id or STATE.applicability is None:
+        return 0
+    rules = STATE.applicability.rules_by_revision.get(revision_id) or []
+    return sum(1 for r in rules if (r.get("review_status") or "UNREVIEWED") == "UNREVIEWED")
 
 
 def _sse(name: str, payload: dict[str, Any]) -> str:
@@ -205,30 +219,118 @@ def _stream(q: str, tail_number: str | None) -> Iterator[str]:
         yield _sse("refusal", refusal)
 
     if not gate.answer_allowed or (engine_refusal and engine_refusal.get("code") != "SUPERSEDED"):
+        # A refusal is a delivered answer, so it carries the same envelope an
+        # answer would. Refusing without saying what was and was not
+        # established, and what would resolve it, is just a dead end.
+        blocked_revision = (
+            getattr(outcome.decision, "revision_id", None)
+            if outcome.available
+            else (
+                STATE.applicability.revision_from(entities=entities, result=result)
+                if STATE.applicability
+                else None
+            )
+        )
+        blocked_stage = _revision_stage(blocked_revision) or {}
         yield _sse(
             "done",
             {
                 "total_ms": round((time.perf_counter() - started) * 1000, 2),
                 "stage_timings": {k: round(v, 2) for k, v in timings.items()},
+                "envelope": build_envelope(
+                    answer_status="REFUSED",
+                    document_stage=blocked_stage.get("document_stage"),
+                    decision=outcome.decision if outcome.available else None,
+                    decision_unavailable=outcome.reason,
+                    verification=None,
+                    answer=None,
+                    revision_id=blocked_revision,
+                    superseded_by=blocked_stage.get("superseded_by"),
+                    refusals=refusals,
+                    traversal=None,
+                    unreviewed_rules=_unreviewed_rules(blocked_revision),
+                ),
             },
         )
         return
 
-    # 5/6. Answer + verification are only reached with evidence in hand.
-    yield _sse(
-        "verification",
-        {
-            "kept": len(result.hits),
-            "dropped": 0,
-            "drop_reasons": [],
-            "stage_ms": 0.0,
-        },
-    )
+    # 5. The answer writer: the second and last model call in the path. It is
+    # given only the paragraphs already streamed above, and it names its
+    # evidence by quoting it -- code, not the model, computes the offsets.
+    revision_id = getattr(outcome.decision, "revision_id", None) if outcome.available else None
+    if revision_id is None and STATE.applicability is not None:
+        revision_id = STATE.applicability.revision_from(entities=entities, result=result)
+    stage = _revision_stage(revision_id) or {}
+    document_stage = stage.get("document_stage")
+
+    t0 = time.perf_counter()
+    drafted = write_answer(STATE.client, q, list(result.hits), stage_note=document_stage)
+    timings["answer"] = (time.perf_counter() - t0) * 1000
+    for sentence in drafted.sentences:
+        yield _sse(
+            "answer_delta",
+            {
+                "sentence": sentence.text,
+                "citation_ids": list(sentence.citation_ids),
+                "index": sentence.index,
+            },
+        )
+
+    # 6. Verification: pure code, and the only route to the screen. Sentences
+    # are streamed above with their citations so the UI can show a drop
+    # happening, which is the point: the gate is visible, not implied.
+    retrieved = {hit.paragraph_id: hit for hit in result.hits}
+    verification = verify(drafted.sentences, retrieved)
+    timings["verify"] = verification.stage_ms
+    yield _sse("verification", verification.as_payload())
+
+    # A draft thinned past the floor becomes a refusal rather than a short
+    # answer: a half-verified answer in this domain reads as a complete one.
+    answer_status = "ANSWERED"
+    thin_detail: str | None = None
+    if not drafted.available:
+        thin_detail = drafted.reason or "the answer writer produced no sentences"
+    elif verification.too_thin:
+        thin_detail = (
+            f"{len(verification.kept)} of {len(verification.verdicts)} drafted "
+            "sentences survived citation verification, below the floor for "
+            "showing an answer at all"
+        )
+    if thin_detail is not None:
+        answer_status = "REFUSED"
+        yield _sse(
+            "refusal",
+            {
+                "code": "NO_EVIDENCE",
+                "detail": thin_detail,
+                "resolvable_by": [],
+                "evidence_paragraph_ids": sorted(retrieved),
+            },
+        )
+    elif verification.dropped:
+        answer_status = "PARTIAL"
+
+    # The envelope rides on `done` rather than an event of its own: it is not a
+    # pipeline stage, it is the finished result, and the contract keeps one
+    # stage name per event.
     yield _sse(
         "done",
         {
             "total_ms": round((time.perf_counter() - started) * 1000, 2),
             "stage_timings": {k: round(v, 2) for k, v in timings.items()},
+            "envelope": build_envelope(
+                answer_status=answer_status,
+                document_stage=document_stage,
+                decision=outcome.decision if outcome.available else None,
+                decision_unavailable=outcome.reason,
+                verification=verification,
+                answer=drafted,
+                revision_id=revision_id,
+                superseded_by=stage.get("superseded_by"),
+                refusals=refusals,
+                traversal=None,
+                unreviewed_rules=_unreviewed_rules(revision_id),
+            ),
         },
     )
 

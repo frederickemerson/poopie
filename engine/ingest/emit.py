@@ -16,6 +16,7 @@ from typing import Any, TextIO
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from engine.ingest.provenance import ProvenanceError, parse_retrieved_at  # noqa: E402
 from contracts.contract import (  # noqa: E402
     ContractViolation,
     edge_types,
@@ -47,6 +48,29 @@ def edge_type_named(prefix: str) -> str:
             f"expected exactly one edge type starting with {prefix!r}, got {matches}"
         )
     return matches[0]
+
+
+def _check_revision_provenance(record: dict[str, Any]) -> None:
+    """A Revision carries its source hash and size together, or none of them.
+
+    ``retrieved_at`` may be null (a document cached before provenance was
+    recorded) but never without a hash, and never a naive timestamp.
+    """
+    sha, size, stamp = (record.get(k) for k in ("content_sha256", "source_bytes", "retrieved_at"))
+    key = record.get("revision_id")
+    if sha is None:
+        if size is not None or stamp is not None:
+            raise ContractViolation(f"Revision {key}: retrieved_at/source_bytes without content_sha256")
+        return
+    if not isinstance(sha, str) or len(sha) != 64:
+        raise ContractViolation(f"Revision {key}: content_sha256 is not a sha256 hex digest")
+    if not isinstance(size, int) or isinstance(size, bool) or size <= 0:
+        raise ContractViolation(f"Revision {key}: source_bytes must be a positive integer")
+    if stamp is not None:
+        try:
+            parse_retrieved_at(stamp)
+        except (ValueError, ProvenanceError) as exc:
+            raise ContractViolation(f"Revision {key}: bad retrieved_at: {exc}") from exc
 
 
 class GraphWriter:
@@ -86,6 +110,8 @@ class GraphWriter:
             )
         record = {field: values.get(field) for field in spec["fields"]}
         validate_node(node_type, record)
+        if node_type == "Revision":
+            _check_revision_provenance(record)
         for (owner, field), enum_name in _ENUM_FIELDS.items():
             if owner == node_type and record.get(field) is not None:
                 validate_enum(enum_name, record[field])
