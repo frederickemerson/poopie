@@ -232,3 +232,62 @@ def test_typescript_mirror_is_in_sync():
     )
     for code in enum("refusal_code"):
         assert code in body, f"TS mirror is missing refusal code {code}"
+
+
+def test_every_refusal_resolvable_by_is_prose_not_a_list():
+    """``resolvable_by`` names WHO can resolve a refusal, as a sentence.
+
+    It was briefly emitted as a list by one producer and consumed as a list by
+    another. Since every other producer emits a string, the consumer extended
+    a list with a string and got one character per element -- a list of
+    letters presented to an engineer as the fields to supply. The type is
+    pinned here so neither half of that can come back.
+    """
+    from engine.verify import refusals as R
+
+    for code in enum("refusal_code"):
+        value = R.resolvable_by(code)
+        assert isinstance(value, str), f"{code} resolvable_by is {type(value).__name__}"
+        assert value.strip(), f"{code} resolvable_by is empty"
+
+
+def test_missing_inputs_are_contract_rule_fields_not_prose():
+    """The envelope's missing_inputs must name fields, from a structured source."""
+    from engine.api.answer import build_envelope
+
+    class _Decision:
+        decision = "CANNOT_DETERMINE"
+        unknown_fields = ("equipment", "modification")
+
+        def proof_tree(self):
+            return {"decision": self.decision}
+
+    envelope = build_envelope(
+        answer_status="REFUSED",
+        document_stage="EFFECTIVE",
+        decision=_Decision(),
+        decision_unavailable=None,
+        verification=None,
+        answer=None,
+        revision_id="r1",
+        superseded_by=None,
+        # A NEED_CONFIG refusal whose resolvable_by is prose. If the envelope
+        # reads that field, this test fails with a list of letters.
+        refusals=[
+            {
+                "code": "NEED_CONFIG",
+                "detail": "which value?",
+                "resolvable_by": "the engineer supplies the value",
+                "evidence_paragraph_ids": [],
+            }
+        ],
+        traversal=None,
+        unreviewed_rules=0,
+    )
+    fields = set(enum("rule_field"))
+    offenders = [m for m in envelope["missing_inputs"] if m not in fields]
+    assert not offenders, (
+        f"missing_inputs carries non-rule_field values {offenders}; it must come "
+        f"from the decision's unknown_fields, not from refusal prose"
+    )
+    assert envelope["missing_inputs"] == ["equipment", "modification"]

@@ -1,61 +1,124 @@
 {
- "generated_at": "2026-10-31T03:14:54+00:00",
+ "generated_at": "2026-10-31T04:39:59+00:00",
  "nodes": {
-  "Docket": 328,
+  "Docket": 2396,
   "NPRM": 431,
-  "AD": 28,
-  "Revision": 29,
-  "Paragraph": 353,
-  "ForeignAD": 16,
-  "ServiceBulletin": 55
+  "AD": 2117,
+  "Revision": 2161,
+  "Paragraph": 25687,
+  "ServiceBulletin": 1832,
+  "ForeignAD": 1519
  },
  "edges": {
-  "IN_DOCKET": 461,
-  "PROPOSED_BY": 22,
-  "HAS_REVISION": 29,
-  "HAS_PARAGRAPH": 353,
-  "ADOPTS_MCAI": 16,
-  "REFERENCES_SB": 63
+  "IN_DOCKET": 2550,
+  "HAS_REVISION": 2161,
+  "HAS_PARAGRAPH": 25687,
+  "PROPOSED_BY": 42,
+  "REFERENCES_SB": 2018,
+  "ADOPTS_MCAI": 1724,
+  "SUPERSEDES": 303
  },
- "documents_seen": 29,
- "revisions": 29,
- "ads": 28,
+ "documents_seen": 2181,
+ "revisions": 2161,
+ "ads": 2117,
  "paragraph_structures": {
-  "labelled_headings": 29
+  "inline_labels": 10,
+  "labelled_headings": 2150,
+  "none": 1
  },
  "delegation": {
-  "ads_total": 28,
-  "ads_whose_current_revision_delegates_applicability": 10,
-  "ads_whose_current_revision_delegates_applicability_or_compliance": 25,
-  "pct_applicability": 35.7,
-  "pct_applicability_or_compliance": 89.3,
-  "revisions_delegating_applicability": 11,
-  "revisions_delegating_compliance": 26
+  "ads_total": 2117,
+  "ads_whose_current_revision_delegates_applicability": 504,
+  "ads_whose_current_revision_delegates_applicability_or_compliance": 1325,
+  "pct_applicability": 23.8,
+  "pct_applicability_or_compliance": 62.6,
+  "revisions_delegating_applicability": 514,
+  "revisions_delegating_compliance": 1297
  },
  "supersession": {
-  "edges": 0,
-  "corrections_same_amendment": 1,
-  "referenced_ads_outside_corpus": 5,
+  "edges": 303,
+  "corrections_same_amendment": 39,
+  "referenced_ads_outside_corpus": 308,
   "dangling_sample": [
    [
-    "2026-20119",
-    "2021-03-08"
+    "2021-03056",
+    "2020-19-02"
    ],
    [
-    "2026-20680",
-    "2019-20-07"
+    "2021-03567",
+    "2019-02-03"
    ],
    [
-    "2026-21278",
-    "2009-04-13"
+    "2021-03576",
+    "2020-04-22"
    ],
    [
-    "2026-21331",
-    "2025-04-05"
+    "2021-03578",
+    "2019-23-15"
    ],
    [
-    "2026-21686",
-    "2019-20-07"
+    "2021-03599",
+    "2000-23-26"
+   ],
+   [
+    "2021-03599",
+    "2018-14-11"
+   ],
+   [
+    "2021-03599",
+    "2019-13-04"
+   ],
+   [
+    "2021-03601",
+    "2019-03-27"
+   ],
+   [
+    "2021-03603",
+    "2020-02-21"
+   ],
+   [
+    "2021-03662",
+    "2018-05-09"
+   ],
+   [
+    "2021-03663",
+    "2020-13-02"
+   ],
+   [
+    "2021-03688",
+    "2015-26-01"
+   ],
+   [
+    "2021-04340",
+    "2018-24-03"
+   ],
+   [
+    "2021-04869",
+    "2020-23-02"
+   ],
+   [
+    "2021-05091",
+    "2018-19-01"
+   ],
+   [
+    "2021-05142",
+    "2016-23-05"
+   ],
+   [
+    "2021-05145",
+    "2018-15-02"
+   ],
+   [
+    "2021-05253",
+    "2017-26-10"
+   ],
+   [
+    "2021-05513",
+    "2021-05-52"
+   ],
+   [
+    "2021-05534",
+    "2018-16-02"
    ]
   ]
  },
@@ -69,28 +132,90 @@
   ],
   "rows_without_docket": [],
   "date_parse_failures": [],
-  "dockets_joined_to_a_final_rule": 22,
-  "dockets_with_no_final_rule_yet": 300
+  "dockets_joined_to_a_final_rule": 42,
+  "dockets_with_no_final_rule_yet": 280
  },
  "foreign_authority_tokens": {
-  "European Union Aviation Safety Agency": 11,
-  "EASA": 4,
-  "Transport Canada": 1
+  "European Union Aviation Safety Agency": 911,
+  "EASA": 434,
+  "Transport Canada": 215,
+  "TCCA": 69,
+  "ANAC": 57,
+  "Transport Canada Civil Aviation": 21,
+  "U.K. CAA": 8,
+  "DGAC": 4,
+  "CAAI": 3,
+  "UK CAA": 1,
+  "CAA UK": 1
  },
- "skipped_non_ad_rules": 0,
- "skipped_non_ad_sample": [],
+ "skipped_non_ad_rules": 20,
+ "skipped_non_ad_sample": [
+  {
+   "document_number": "2020-28947",
+   "title": "Operation of Small Unmanned Aircraft Systems Over People",
+   "reason": "docket_ids names no AD number"
+  },
+  {
+   "document_number": "2020-28948",
+   "title": "Remote Identification of Unmanned Aircraft",
+   "reason": "docket_ids names no AD number"
+  },
+  {
+   "document_number": "2021-12227",
+   "title": "Airworthiness Directives; Airbus Helicopters Deutschland GmbH (AHD) Helicopters",
+   "reason": "docket_ids names no AD number"
+  },
+  {
+   "document_number": "2022-01556",
+   "title": "Airworthiness Criteria: Special Class Airworthiness Criteria for the Amazon Logistics, Inc. MK27-2 Unmanned Aircraft",
+   "reason": "docket_ids names no AD number"
+  },
+  {
+   "document_number": "2022-05611",
+   "title": "Airworthiness Criteria: Special Class Airworthiness Criteria for the 3DRobotics Government Services 3DR-GS H520-G Unmanned Aircraft",
+   "reason": "docket_ids names no AD number"
+  },
+  {
+   "document_number": "2022-23327",
+   "title": "Miscellaneous Amendments",
+   "reason": "docket_ids names no AD number"
+  },
+  {
+   "document_number": "2023-14927",
+   "title": "Demonstration of Radio Altimeter Tolerant Aircraft",
+   "reason": "docket_ids names no AD number"
+  },
+  {
+   "document_number": "2024-06644",
+   "title": "Airman Certification Standards and Practical Test Standards for Airmen; Incorporation by Reference",
+   "reason": "docket_ids names no AD number"
+  },
+  {
+   "document_number": "2024-08669",
+   "title": "Safety Management Systems",
+   "reason": "docket_ids names no AD number"
+  },
+  {
+   "document_number": "2024-15924",
+   "title": "Robinson Helicopter R-22 and R-44 Special Training and Experience Requirements",
+   "reason": "docket_ids names no AD number"
+  }
+ ],
  "xml_unavailable": [],
- "parse_notes": [],
- "dockets_queried_outside_window": 0,
+ "parse_notes": [
+  "duplicate paragraph label j in 2021-19847; kept as j~2",
+  "duplicate paragraph label h in 2021-26394; kept as h~2"
+ ],
+ "dockets_queried_outside_window": 288,
  "window": {
-  "since": "2026-10-01",
+  "since": "2021-01-01",
   "until": "2026-10-31"
  },
  "fetch": {
-  "index_requests": 1,
-  "index_cache_hits": 0,
-  "xml_downloads": 29,
-  "xml_cache_hits": 0,
+  "index_requests": 356,
+  "index_cache_hits": 3,
+  "xml_downloads": 2013,
+  "xml_cache_hits": 2161,
   "xml_failures": []
  }
 }

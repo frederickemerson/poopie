@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ResolvedCitation } from "@/lib/citation";
 import type { AdEntry } from "@/lib/corpus";
+import { isProofTreeUnavailable } from "@/lib/events";
 import type { EngineView } from "@/lib/useEngineStream";
 import { Panel } from "../ui/Panel";
 import { Tabs, type TabSpec } from "../ui/Tabs";
@@ -38,8 +39,17 @@ export function EvidenceTabs({
   resolve,
   subjectLabel,
 }: EvidenceTabsProps) {
+  // No decision is a state of its own, so the badge says so rather than "0".
+  const tree = state.decision?.proof_tree ?? null;
+  const proofBadge =
+    tree === null
+      ? undefined
+      : isProofTreeUnavailable(tree)
+        ? "none"
+        : String(tree.children?.length ?? 0);
+
   const tabs: readonly TabSpec<EvidenceTabId>[] = [
-    { id: "proof", label: "proof tree", badge: state.decision ? String(state.decision.proof_tree.children?.length ?? 0) : undefined },
+    { id: "proof", label: "proof tree", badge: proofBadge },
     { id: "revisions", label: "revisions", badge: ad ? String(ad.revisions.length) : undefined },
     { id: "trace", label: "trace", badge: state.done ? `${state.done.total_ms}ms` : undefined },
   ];

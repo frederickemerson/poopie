@@ -8,7 +8,7 @@ import { evaluate } from "../applicability";
 import { AD_A320_NLG, CITE_A320, REV_2026_23114 } from "../corpus";
 import { REFUSAL_SEMANTICS } from "../contract";
 import type { EngineEvent, RefusalPayload } from "../events";
-import { adAndRevision, entity, emptyPlan, querySubject, retrievalOf, stageTimings, type Frame, type Scenario } from "./shared";
+import { adAndRevision, entity, emptyPlan, querySubject, retrievalOf, envelopeFor, stageTimings, type Frame, type Scenario } from "./shared";
 
 const QUERY = "Does AD 2026-23-05 apply to our Airbus A320-214s?";
 const entry = adAndRevision(AD_A320_NLG, 0);
@@ -97,7 +97,11 @@ const frames: Frame[] = [
 
 frames.push({
   delay_ms: 50,
-  event: { event: "done", data: { total_ms: 751, stage_timings: stageTimings(frames) } } satisfies EngineEvent,
+  event: { event: "done", data: { total_ms: 751, stage_timings: stageTimings(frames), envelope: envelopeFor(frames, {
+      revisionId: REV_2026_23114.revision.revision_id,
+      supersededBy: null,
+      documentStage: "EFFECTIVE",
+    }) } } satisfies EngineEvent,
 });
 
 export const NEED_CONFIG_SCENARIO: Scenario = {

@@ -1,7 +1,7 @@
 // GENERATED FROM contracts/contract.json - DO NOT EDIT BY HAND.
 // Regenerate with: python contracts/gen_ts.py
 
-export const CONTRACT_VERSION = "1.1.0";
+export const CONTRACT_VERSION = "1.1.1";
 
 export type ParagraphRole = "EFFECTIVE_DATE" | "AFFECTED_ADS" | "APPLICABILITY" | "SUBJECT" | "UNSAFE_CONDITION" | "COMPLIANCE" | "REQUIRED_ACTIONS" | "EXCEPTIONS" | "CREDIT" | "AMOC" | "ADDITIONAL_INFO" | "IBR" | "OTHER";
 export const PARAGRAPH_ROLE: readonly ParagraphRole[] = ["EFFECTIVE_DATE", "AFFECTED_ADS", "APPLICABILITY", "SUBJECT", "UNSAFE_CONDITION", "COMPLIANCE", "REQUIRED_ACTIONS", "EXCEPTIONS", "CREDIT", "AMOC", "ADDITIONAL_INFO", "IBR", "OTHER"] as const;
@@ -62,8 +62,8 @@ export const REFUSAL_SEMANTICS: Record<RefusalCode, {
 }> = {
   NEED_CONFIG: { trigger: "Rule exists on a field the query did not supply and the fleet record does not hold.", resolvable_by: "user supplies the value", blocks_answer: true },
   CANNOT_DETERMINE: { trigger: "Applicability text the extractor could not parse (Rule.operator == 'unparsed').", resolvable_by: "human reads the highlighted clause", blocks_answer: true },
-  NO_EVIDENCE: { trigger: "Top fused retrieval score below threshold.", resolvable_by: "none; out of corpus", blocks_answer: true },
-  OUT_OF_SCOPE: { trigger: "Query plan intent outside AD content, or a model absent from the corpus.", resolvable_by: "none", blocks_answer: true },
+  NO_EVIDENCE: { trigger: "Top fused retrieval score below threshold.", resolvable_by: "load an AD covering this subject, or ask about one in the corpus", blocks_answer: true },
+  OUT_OF_SCOPE: { trigger: "Query plan intent outside AD content, or a model absent from the corpus.", resolvable_by: "nobody; the question is not about an airworthiness directive", blocks_answer: true },
   SUPERSEDED: { trigger: "Asked about a revision that has a newer one. Answer IS still given, with a banner.", resolvable_by: "read the current revision", blocks_answer: false },
   EXTERNAL_SOURCE_REQUIRED: { trigger: "Applicability or compliance time is delegated to a ForeignAD or ServiceBulletin with held=false.", resolvable_by: "load the referenced document", blocks_answer: true },
 };

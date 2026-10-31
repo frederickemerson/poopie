@@ -17,7 +17,7 @@ import { DELEGATION_QUOTE } from "../corpus/ad_a330_fcpc";
 import { REFUSAL_SEMANTICS } from "../contract";
 import { aircraftByTail } from "../fleet";
 import type { EngineEvent, RefusalPayload } from "../events";
-import { adAndRevision, entity, emptyPlan, retrievalOf, stageTimings, type Frame, type Scenario } from "./shared";
+import { adAndRevision, entity, emptyPlan, retrievalOf, envelopeFor, stageTimings, type Frame, type Scenario } from "./shared";
 
 const QUERY = "Does AD 2026-22-02 apply to N401DZ, our A330-941, MSN 1915?";
 const entry = adAndRevision(AD_A330_FCPC, 0);
@@ -104,7 +104,11 @@ const frames: Frame[] = [
 
 frames.push({
   delay_ms: 50,
-  event: { event: "done", data: { total_ms: 934, stage_timings: stageTimings(frames) } } satisfies EngineEvent,
+  event: { event: "done", data: { total_ms: 934, stage_timings: stageTimings(frames), envelope: envelopeFor(frames, {
+      revisionId: REV_2026_21861.revision.revision_id,
+      supersededBy: null,
+      documentStage: "EFFECTIVE",
+    }) } } satisfies EngineEvent,
 });
 
 export const EXTERNAL_SOURCE_SCENARIO: Scenario = {

@@ -1,0 +1,396 @@
+{
+  "ours": {
+    "arm": "ours",
+    "n": 51,
+    "rates": {
+      "wrong_answer_rate": {
+        "name": "wrong_answer_rate",
+        "numerator": 8,
+        "denominator": 31,
+        "excluded": 0,
+        "rate": 0.25806451612903225,
+        "reason": null,
+        "text": "8/31 (25.8%)"
+      },
+      "refusal_recall": {
+        "name": "refusal_recall",
+        "numerator": 8,
+        "denominator": 31,
+        "excluded": 0,
+        "rate": 0.25806451612903225,
+        "reason": null,
+        "text": "8/31 (25.8%)"
+      },
+      "false_refusal_rate": {
+        "name": "false_refusal_rate",
+        "numerator": 14,
+        "denominator": 20,
+        "excluded": 0,
+        "rate": 0.7,
+        "reason": null,
+        "text": "14/20 (70.0%)"
+      },
+      "target_ad_recall": {
+        "name": "target_ad_recall",
+        "numerator": 36,
+        "denominator": 36,
+        "excluded": 0,
+        "rate": 1.0,
+        "reason": null,
+        "text": "36/36 (100.0%)"
+      },
+      "citation_precision": {
+        "name": "citation_precision",
+        "numerator": 80,
+        "denominator": 80,
+        "excluded": 0,
+        "rate": 1.0,
+        "reason": null,
+        "text": "80/80 (100.0%)"
+      },
+      "citation_coverage": {
+        "name": "citation_coverage",
+        "numerator": 79,
+        "denominator": 79,
+        "excluded": 0,
+        "rate": 1.0,
+        "reason": null,
+        "text": "79/79 (100.0%)"
+      },
+      "applicability_accuracy": {
+        "name": "applicability_accuracy",
+        "numerator": 6,
+        "denominator": 6,
+        "excluded": 10,
+        "rate": 1.0,
+        "reason": null,
+        "text": "6/6 (100.0%) [10 excluded]"
+      }
+    },
+    "refusal_recall_by_code": {
+      "EXTERNAL_SOURCE_REQUIRED": {
+        "name": "refusal_recall[EXTERNAL_SOURCE_REQUIRED]",
+        "numerator": 0,
+        "denominator": 10,
+        "excluded": 0,
+        "rate": 0.0,
+        "reason": null,
+        "text": "0/10 (0.0%)"
+      },
+      "NEED_CONFIG": {
+        "name": "refusal_recall[NEED_CONFIG]",
+        "numerator": 4,
+        "denominator": 11,
+        "excluded": 0,
+        "rate": 0.36363636363636365,
+        "reason": null,
+        "text": "4/11 (36.4%)"
+      },
+      "NO_EVIDENCE": {
+        "name": "refusal_recall[NO_EVIDENCE]",
+        "numerator": 3,
+        "denominator": 3,
+        "excluded": 0,
+        "rate": 1.0,
+        "reason": null,
+        "text": "3/3 (100.0%)"
+      },
+      "OUT_OF_SCOPE": {
+        "name": "refusal_recall[OUT_OF_SCOPE]",
+        "numerator": 1,
+        "denominator": 7,
+        "excluded": 0,
+        "rate": 0.14285714285714285,
+        "reason": null,
+        "text": "1/7 (14.3%)"
+      }
+    },
+    "latency_p50": {
+      "answer": {
+        "stage": "answer",
+        "percentile": 50,
+        "ms": 0.55,
+        "n": 37,
+        "reason": null,
+        "text": "1 ms (n=37)"
+      },
+      "applicability": {
+        "stage": "applicability",
+        "percentile": 50,
+        "ms": 0.03,
+        "n": 51,
+        "reason": null,
+        "text": "0 ms (n=51)"
+      },
+      "entity_pass": {
+        "stage": "entity_pass",
+        "percentile": 50,
+        "ms": 0.08,
+        "n": 51,
+        "reason": null,
+        "text": "0 ms (n=51)"
+      },
+      "query_plan": {
+        "stage": "query_plan",
+        "percentile": 50,
+        "ms": 0.57,
+        "n": 51,
+        "reason": null,
+        "text": "1 ms (n=51)"
+      },
+      "retrieval": {
+        "stage": "retrieval",
+        "percentile": 50,
+        "ms": 20.67,
+        "n": 51,
+        "reason": null,
+        "text": "21 ms (n=51)"
+      },
+      "total": {
+        "stage": "total",
+        "percentile": 50,
+        "ms": 24.63,
+        "n": 51,
+        "reason": null,
+        "text": "25 ms (n=51)"
+      },
+      "verify": {
+        "stage": "verify",
+        "percentile": 50,
+        "ms": 0.2,
+        "n": 37,
+        "reason": null,
+        "text": "0 ms (n=37)"
+      }
+    },
+    "latency_p95": {
+      "answer": {
+        "stage": "answer",
+        "percentile": 95,
+        "ms": 17.87,
+        "n": 37,
+        "reason": null,
+        "text": "18 ms (n=37)"
+      },
+      "applicability": {
+        "stage": "applicability",
+        "percentile": 95,
+        "ms": 0.38,
+        "n": 51,
+        "reason": null,
+        "text": "0 ms (n=51)"
+      },
+      "entity_pass": {
+        "stage": "entity_pass",
+        "percentile": 95,
+        "ms": 0.18,
+        "n": 51,
+        "reason": null,
+        "text": "0 ms (n=51)"
+      },
+      "query_plan": {
+        "stage": "query_plan",
+        "percentile": 95,
+        "ms": 1036.59,
+        "n": 51,
+        "reason": null,
+        "text": "1037 ms (n=51)"
+      },
+      "retrieval": {
+        "stage": "retrieval",
+        "percentile": 95,
+        "ms": 62.6,
+        "n": 51,
+        "reason": null,
+        "text": "63 ms (n=51)"
+      },
+      "total": {
+        "stage": "total",
+        "percentile": 95,
+        "ms": 1064.9,
+        "n": 51,
+        "reason": null,
+        "text": "1065 ms (n=51)"
+      },
+      "verify": {
+        "stage": "verify",
+        "percentile": 95,
+        "ms": 0.3,
+        "n": 37,
+        "reason": null,
+        "text": "0 ms (n=37)"
+      }
+    },
+    "outcomes": {
+      "answered": 6,
+      "false_refusal": 14,
+      "wrong_answer": 8,
+      "refusal_wrong_code": 15,
+      "refusal_correct": 8
+    }
+  },
+  "baseline": {
+    "arm": "baseline",
+    "n": 51,
+    "rates": {
+      "wrong_answer_rate": {
+        "name": "wrong_answer_rate",
+        "numerator": 21,
+        "denominator": 21,
+        "excluded": 0,
+        "rate": 1.0,
+        "reason": null,
+        "text": "21/21 (100.0%)"
+      },
+      "refusal_recall": {
+        "name": "refusal_recall",
+        "numerator": 0,
+        "denominator": 31,
+        "excluded": 0,
+        "rate": 0.0,
+        "reason": null,
+        "text": "0/31 (0.0%)"
+      },
+      "false_refusal_rate": {
+        "name": "false_refusal_rate",
+        "numerator": 0,
+        "denominator": 20,
+        "excluded": 0,
+        "rate": 0.0,
+        "reason": null,
+        "text": "0/20 (0.0%)"
+      },
+      "target_ad_recall": {
+        "name": "target_ad_recall",
+        "numerator": 0,
+        "denominator": 30,
+        "excluded": 0,
+        "rate": 0.0,
+        "reason": null,
+        "text": "0/30 (0.0%)"
+      },
+      "citation_precision": {
+        "name": "citation_precision",
+        "numerator": 34,
+        "denominator": 34,
+        "excluded": 0,
+        "rate": 1.0,
+        "reason": null,
+        "text": "34/34 (100.0%)"
+      },
+      "citation_coverage": {
+        "name": "citation_coverage",
+        "numerator": 34,
+        "denominator": 56,
+        "excluded": 0,
+        "rate": 0.6071428571428571,
+        "reason": null,
+        "text": "34/56 (60.7%)"
+      },
+      "applicability_accuracy": {
+        "name": "applicability_accuracy",
+        "numerator": 0,
+        "denominator": 0,
+        "excluded": 10,
+        "rate": null,
+        "reason": "no decision was available for any of the 10 labelled questions",
+        "text": "n/a (no decision was available for any of the 10 labelled questions)"
+      }
+    },
+    "refusal_recall_by_code": {
+      "EXTERNAL_SOURCE_REQUIRED": {
+        "name": "refusal_recall[EXTERNAL_SOURCE_REQUIRED]",
+        "numerator": 0,
+        "denominator": 10,
+        "excluded": 0,
+        "rate": 0.0,
+        "reason": null,
+        "text": "0/10 (0.0%)"
+      },
+      "NEED_CONFIG": {
+        "name": "refusal_recall[NEED_CONFIG]",
+        "numerator": 0,
+        "denominator": 11,
+        "excluded": 0,
+        "rate": 0.0,
+        "reason": null,
+        "text": "0/11 (0.0%)"
+      },
+      "NO_EVIDENCE": {
+        "name": "refusal_recall[NO_EVIDENCE]",
+        "numerator": 0,
+        "denominator": 3,
+        "excluded": 0,
+        "rate": 0.0,
+        "reason": null,
+        "text": "0/3 (0.0%)"
+      },
+      "OUT_OF_SCOPE": {
+        "name": "refusal_recall[OUT_OF_SCOPE]",
+        "numerator": 0,
+        "denominator": 7,
+        "excluded": 0,
+        "rate": 0.0,
+        "reason": null,
+        "text": "0/7 (0.0%)"
+      }
+    },
+    "latency_p50": {
+      "answer": {
+        "stage": "answer",
+        "percentile": 50,
+        "ms": 0.87,
+        "n": 51,
+        "reason": null,
+        "text": "1 ms (n=51)"
+      },
+      "retrieval": {
+        "stage": "retrieval",
+        "percentile": 50,
+        "ms": 11.27,
+        "n": 51,
+        "reason": null,
+        "text": "11 ms (n=51)"
+      },
+      "total": {
+        "stage": "total",
+        "percentile": 50,
+        "ms": 13.02,
+        "n": 51,
+        "reason": null,
+        "text": "13 ms (n=51)"
+      }
+    },
+    "latency_p95": {
+      "answer": {
+        "stage": "answer",
+        "percentile": 95,
+        "ms": 18.65,
+        "n": 51,
+        "reason": null,
+        "text": "19 ms (n=51)"
+      },
+      "retrieval": {
+        "stage": "retrieval",
+        "percentile": 95,
+        "ms": 15.2,
+        "n": 51,
+        "reason": null,
+        "text": "15 ms (n=51)"
+      },
+      "total": {
+        "stage": "total",
+        "percentile": 95,
+        "ms": 31.51,
+        "n": 51,
+        "reason": null,
+        "text": "32 ms (n=51)"
+      }
+    },
+    "outcomes": {
+      "answered": 20,
+      "wrong_answer": 21,
+      "error": 10
+    }
+  }
+}

@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo } from "react";
 import type { ResolvedCitation } from "@/lib/citation";
+import { describeDropReason } from "@/lib/dropReasons";
 import { useMotionPrefs } from "@/lib/motion";
 import type { AnswerDeltaPayload } from "@/lib/events";
 import type { DroppedSentence, VerifiedSentence } from "@/lib/useEngineStream";
@@ -103,13 +104,20 @@ export function AnswerStream({
           className="border border-dashed border-line-strong px-3 py-2"
         >
           <p className="t-label mb-1">dropped by the verifier &middot; not rendered</p>
-          <ul>
-            {dropped.map((d) => (
-              <li key={d.index} className="t-mono flex gap-2 py-0.5 text-ink-3">
-                <span className="shrink-0 text-ink-2">s{d.index}</span>
-                <span>{d.reason}</span>
-              </li>
-            ))}
+          <ul className="flex flex-col gap-1.5">
+            {dropped.map((d) => {
+              const text = describeDropReason(d.code);
+              return (
+                <li key={`${d.index}-${d.code}`} className="flex gap-2">
+                  <span className="t-mono shrink-0 text-ink-2">s{d.index}</span>
+                  <div className="min-w-0">
+                    <p className="t-mono text-ink-2">{d.code}</p>
+                    {text ? <p className="t-body text-ink-3">{text}</p> : null}
+                    {d.detail ? <p className="t-mono text-ink-3">{d.detail}</p> : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </motion.div>
       ) : null}

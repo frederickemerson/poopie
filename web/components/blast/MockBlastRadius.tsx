@@ -13,19 +13,21 @@ import { FLEET_TONE, FleetCell } from "./FleetCell";
 const PULSE_MS = 1500;
 const DECISIONS: readonly Decision[] = ["APPLIES", "CANNOT_DETERMINE", "DOES_NOT_APPLY"];
 
-interface BlastRadiusProps {
+interface MockBlastRadiusProps {
   /** AD the current answer is about, so the tab opens on something relevant. */
   readonly preferredAdNumber: string | null;
 }
 
 /**
- * The fleet, grouped by operator, 86 real aircraft from the OpenSky public
- * database. Picking an AD runs the rules engine over every record and the cells
- * flip in a wave. Switching revision re-runs it and pulses only the cells whose
- * outcome changed, which is the whole point: a revision that "reduces the
- * applicability" should be visible as a handful of cells, not a repaint.
+ * The recorded fleet grid: 86 real OpenSky records against the four ADs in
+ * lib/corpus, decided in the browser by lib/applicability.
+ *
+ * This is the fallback the dev toggle switches to. The live grid
+ * (LiveBlastRadius) is the real one - it runs the engine's own rules over all
+ * 478 built fleet records - but if the backend dies mid-demo this path still
+ * shows the argument, and the header says which one you are looking at.
  */
-export function BlastRadius({ preferredAdNumber }: BlastRadiusProps) {
+export function MockBlastRadius({ preferredAdNumber }: MockBlastRadiusProps) {
   const { dur, stagger, reduced } = useMotionPrefs();
   const [adNumber, setAdNumber] = useState<string>(
     () => ADS.find((a) => a.ad_number === preferredAdNumber)?.ad_number ?? ADS[0]?.ad_number ?? "",
@@ -162,7 +164,9 @@ export function BlastRadius({ preferredAdNumber }: BlastRadiusProps) {
             </p>
           </div>
           <p className="t-mono border-t border-line px-4 py-1.5 text-ink-3">
-            {FLEET_PROVENANCE.dataset}, retrieved {FLEET_PROVENANCE.retrieved} &middot;{" "}
+            <span className="font-semibold text-accent">recorded grid</span> &middot; decided in the
+            browser, not by the engine &middot; {FLEET_PROVENANCE.dataset}, retrieved{" "}
+            {FLEET_PROVENANCE.retrieved} &middot;{" "}
             {FLEET_PROVENANCE.aircraft} aircraft, {FLEET_PROVENANCE.operators} operators &middot; the
             dataset carries no {FLEET_PROVENANCE.absent_fields.join(", ")} fields, which is why amber
             cells exist &middot; red here means <em className="not-italic text-no">affected</em>, not

@@ -8,7 +8,7 @@ import { evaluate } from "../applicability";
 import { AD_A320_NLG, CITE_A320, REV_2026_23114 } from "../corpus";
 import { aircraftByTail } from "../fleet";
 import type { EngineEvent } from "../events";
-import { adAndRevision, entity, emptyPlan, retrievalOf, stageTimings, type Frame, type Scenario } from "./shared";
+import { adAndRevision, entity, emptyPlan, retrievalOf, envelopeFor, stageTimings, type Frame, type Scenario } from "./shared";
 
 const QUERY = "Does AD 2026-23-05 apply to N117UW, an A320-214 with MSN 1224, and what must I do by when?";
 const entry = adAndRevision(AD_A320_NLG, 0);
@@ -113,9 +113,16 @@ const frames: Frame[] = [
       data: {
         kept: [0, 1, 2],
         dropped: [3],
-        drop_reasons: {
-          "3": `citation ${UNRETRIEVED_CITATION} does not resolve to a paragraph in the retrieved set for this query`,
-        },
+        // The verifier's own code, so the recorded stream and the live one speak
+        // one vocabulary (engine/verify/verifier.py).
+        drop_reasons: [
+          {
+            index: 3,
+            citation_id: UNRETRIEVED_CITATION,
+            reason: "citation_not_in_retrieved_set",
+            detail: `${UNRETRIEVED_CITATION} was not in the set retrieved for this query`,
+          },
+        ],
         stage_ms: 12,
       },
     },
@@ -126,7 +133,11 @@ frames.push({
   delay_ms: 60,
   event: {
     event: "done",
-    data: { total_ms: 1098, stage_timings: stageTimings(frames) },
+    data: { total_ms: 1098, stage_timings: stageTimings(frames), envelope: envelopeFor(frames, {
+      revisionId: REV_2026_23114.revision.revision_id,
+      supersededBy: null,
+      documentStage: "EFFECTIVE",
+    }) },
   } satisfies EngineEvent,
 });
 

@@ -139,7 +139,13 @@ def main(argv: list[str] | None = None) -> int:
         if result.hits:
             top = result.hits[0]
             show("top paragraph", f"{top.paragraph_id}  role={top.role}")
-            show("top dense cosine", f"{top.dense_cosine:.3f}")
+            # None when the keyword arm alone produced this hit, which is not
+            # the same as a cosine of zero and must not be printed as one.
+            cosine = top.dense_cosine
+            show(
+                "top dense cosine",
+                f"{cosine:.3f}" if cosine is not None else "none (keyword arm only)",
+            )
         else:
             show("retrieved", "nothing")
 

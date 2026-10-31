@@ -1,5 +1,5 @@
 {
-  "contract_version": "1.1.0",
+  "contract_version": "1.1.1",
   "description": "Single source of truth for the AD traceability engine. Every node type, edge type, enum value, event name and payload key used anywhere in engine/, web/ or eval/ MUST appear here. tests/test_contract.py fails the build on any key that does not.",
   "node_types": {
     "Docket": {
@@ -342,12 +342,12 @@
     "NO_EVIDENCE": {
       "trigger": "Top fused retrieval score below threshold.",
       "user_message_key": "not_in_corpus",
-      "resolvable_by": "none; out of corpus"
+      "resolvable_by": "load an AD covering this subject, or ask about one in the corpus"
     },
     "OUT_OF_SCOPE": {
       "trigger": "Query plan intent outside AD content, or a model absent from the corpus.",
       "user_message_key": "scope_statement",
-      "resolvable_by": "none"
+      "resolvable_by": "nobody; the question is not about an airworthiness directive"
     },
     "SUPERSEDED": {
       "trigger": "Asked about a revision that has a newer one. Answer IS still given, with a banner.",

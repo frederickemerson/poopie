@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { citationLabel, type ResolvedCitation } from "@/lib/citation";
+import { citationLabel, paragraphRef, type ResolvedCitation } from "@/lib/citation";
 import { useMotionPrefs } from "@/lib/motion";
 import type { ParagraphNode } from "@/lib/events";
 import { QuoteSpan } from "../ui/QuoteSpan";
@@ -34,7 +34,7 @@ export function SourcePanel({ citation, paragraphs, scores }: SourcePanelProps) 
           >
             <header className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="t-mono font-semibold text-ink">
-                &para;({citation.paragraph.label}) {citation.paragraph.heading}
+                {paragraphRef(citation.paragraph.label)} {citation.paragraph.heading}
               </h3>
               <span className="t-label !tracking-[0.06em]">{citation.paragraph.role}</span>
             </header>
@@ -82,7 +82,7 @@ export function SourcePanel({ citation, paragraphs, scores }: SourcePanelProps) 
                   >
                     <div className="min-w-0">
                       <p className="t-mono truncate text-ink">
-                        &para;({p.label}) {p.heading}
+                        {paragraphRef(p.label)} {p.heading}
                       </p>
                       <p className="t-mono truncate text-ink-3">{p.paragraph_id}</p>
                     </div>

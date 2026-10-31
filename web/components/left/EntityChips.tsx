@@ -30,7 +30,11 @@ export function EntityChips({ entities, query }: EntityChipsProps) {
               exit={{ opacity: 0, scale: 0.97 }}
               transition={{ duration: dur(200), delay: stagger(50) * i, ease: [0.2, 0.8, 0.2, 1] }}
               className="flex items-baseline gap-1.5 border border-line bg-sunken px-1.5 py-1"
-              title={`read "${read || e.value}" at characters ${e.span[0]}-${e.span[1]}, confidence ${e.confidence.toFixed(2)}`}
+              title={`read "${read || e.value}" at characters ${e.span[0]}-${e.span[1]}, ${
+                e.confidence === undefined
+                  ? "deterministic match (the entity pass publishes no score)"
+                  : `confidence ${e.confidence.toFixed(2)}`
+              }`}
             >
               <span className="t-label !tracking-[0.06em]">{e.field.replace(/_/g, " ")}</span>
               <span className="t-mono font-semibold text-ink">{e.value}</span>

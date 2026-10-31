@@ -4,6 +4,7 @@ import "@xyflow/react/dist/style.css";
 import { Background, BackgroundVariant, Handle, Position, ReactFlow, type Edge, type Node, type NodeProps } from "@xyflow/react";
 import { useMemo } from "react";
 import { LATENCY_TARGETS_MS } from "@/lib/contract";
+import { isProofTreeUnavailable } from "@/lib/events";
 import { useMotionPrefs } from "@/lib/motion";
 import type { EngineView } from "@/lib/useEngineStream";
 
@@ -66,6 +67,11 @@ export function RetrievalTrace({ state }: { readonly state: EngineView }) {
     const retrieved = state.paragraphs;
     const revisionIds = [...new Set(retrieved.map((p) => p.revision_id))];
     const decision = state.decision;
+    // null when there is no decision at all, which is not the same as zero
+    // conditions and must not render as "0".
+    const tree = decision?.proof_tree ?? null;
+    const conditionCount =
+      tree === null || isProofTreeUnavailable(tree) ? null : (tree.children?.length ?? 0);
 
     const defs: readonly { id: string; data: TraceData; x: number; y: number }[] = [
       {
@@ -92,7 +98,7 @@ export function RetrievalTrace({ state }: { readonly state: EngineView }) {
         y: 0,
         data: {
           kind: "Rule",
-          heading: decision ? `${decision.proof_tree.children?.length ?? 0} conditions` : "—",
+          heading: conditionCount === null ? "—" : `${conditionCount} conditions`,
           lines: decision
             ? [
                 `fired ${decision.fired_rule_ids.length}`,

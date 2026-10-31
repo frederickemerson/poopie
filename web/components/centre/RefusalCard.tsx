@@ -2,17 +2,34 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { paragraphRef, sameParagraph } from "@/lib/citation";
 import { REFUSAL_SEMANTICS } from "@/lib/contract";
 import { useMotionPrefs } from "@/lib/motion";
-import type { ParagraphNode, RefusalPayload } from "@/lib/events";
+import type { ExternalDocumentRef, ParagraphNode, RefusalPayload } from "@/lib/events";
 import { QuoteInText } from "../ui/QuoteSpan";
 
 interface RefusalCardProps {
   readonly refusal: RefusalPayload;
   readonly paragraphs: readonly ParagraphNode[];
+  /**
+   * The documents the decision was blocked on, from the same run's decision
+   * event. The live refusal detail is a sentence, so these are the only
+   * structured facts about the missing document and they come from the engine.
+   */
+  readonly externalDocuments?: readonly ExternalDocumentRef[];
   /** NEED_CONFIG is resolvable by the user; supplying the value re-runs. */
   readonly onSupplyValue?: (field: string, value: string) => void;
 }
+
+/** How many evidence paragraphs are shown in full before they are counted. */
+const EVIDENCE_SHOWN = 3;
+
+/** Who can clear the blocker. The product's whole point is this distinction. */
+const RESOLVER: Readonly<Record<string, string>> = {
+  NEED_CONFIG: "you can clear this — the value is known on the aircraft, not in the record",
+  EXTERNAL_SOURCE_REQUIRED: "loading the named document clears this — nobody can reason it out",
+  CANNOT_DETERMINE: "a human reading the clause clears this — our extractor could not",
+};
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="grid grid-cols-[92px_1fr] items-baseline gap-2 border-t border-line px-3 py-2">
@@ -26,36 +43,56 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
  * contract documents for that code, what would resolve it, and the evidence it
  * is standing on.
  */
-export function RefusalCard({ refusal, paragraphs, onSupplyValue }: RefusalCardProps) {
+export function RefusalCard({
+  refusal,
+  paragraphs,
+  externalDocuments = [],
+  onSupplyValue,
+}: RefusalCardProps) {
   const { dur } = useMotionPrefs();
   const semantics = REFUSAL_SEMANTICS[refusal.code];
   const blocks = semantics.blocks_answer;
   const [supplied, setSupplied] = useState("");
 
+  // The live service sends `detail` as one sentence naming the exact missing
+  // thing; the recorded stream sends a keyed object. Both are rendered as they
+  // arrive - a sentence is never reshaped into fields it does not contain.
+  const sentence = typeof refusal.detail === "string" ? refusal.detail : null;
+  const keyed = typeof refusal.detail === "string" ? null : refusal.detail;
+
   const needConfig =
-    refusal.code === "NEED_CONFIG" && "which_value" in refusal.detail
-      ? refusal.detail.which_value
-      : null;
+    refusal.code === "NEED_CONFIG" && keyed && "which_value" in keyed ? keyed.which_value : null;
   const externalDoc =
-    refusal.code === "EXTERNAL_SOURCE_REQUIRED" && "external_doc_needed" in refusal.detail
-      ? refusal.detail.external_doc_needed
+    refusal.code === "EXTERNAL_SOURCE_REQUIRED" && keyed && "external_doc_needed" in keyed
+      ? keyed.external_doc_needed
       : null;
   const unparsed =
-    refusal.code === "CANNOT_DETERMINE" && "unparsed_clause" in refusal.detail
-      ? refusal.detail.unparsed_clause
+    refusal.code === "CANNOT_DETERMINE" && keyed && "unparsed_clause" in keyed
+      ? keyed.unparsed_clause
       : null;
   const notInCorpus =
-    refusal.code === "NO_EVIDENCE" && "not_in_corpus" in refusal.detail
-      ? refusal.detail.not_in_corpus
-      : null;
+    refusal.code === "NO_EVIDENCE" && keyed && "not_in_corpus" in keyed ? keyed.not_in_corpus : null;
   const scope =
-    refusal.code === "OUT_OF_SCOPE" && "scope_statement" in refusal.detail
-      ? refusal.detail.scope_statement
+    refusal.code === "OUT_OF_SCOPE" && keyed && "scope_statement" in keyed
+      ? keyed.scope_statement
       : null;
 
-  const evidence = refusal.evidence_paragraph_ids
-    .map((id) => paragraphs.find((p) => p.paragraph_id === id))
+  // Documents the corpus does not hold. Only shown for the code that is about
+  // them, so a NEED_CONFIG card never implies a missing document.
+  const missingDocs =
+    refusal.code === "EXTERNAL_SOURCE_REQUIRED"
+      ? externalDocuments.filter((d) => d.held !== true)
+      : [];
+  const resolverNote = RESOLVER[refusal.code] ?? null;
+
+  const resolved = refusal.evidence_paragraph_ids
+    .map((id) => paragraphs.find((p) => sameParagraph(p.paragraph_id, id)))
     .filter((p): p is ParagraphNode => p !== undefined);
+  // A gate-level refusal can stand on the whole retrieved set. Show the first
+  // few in full and count the rest, so the card stays readable without hiding
+  // that the refusal rests on more than what is on screen.
+  const evidence = resolved.slice(0, EVIDENCE_SHOWN);
+  const moreEvidence = resolved.length - evidence.length;
 
   return (
     <motion.section
@@ -75,7 +112,63 @@ export function RefusalCard({ refusal, paragraphs, onSupplyValue }: RefusalCardP
         </span>
       </header>
 
+      {resolverNote ? (
+        <p className="t-body border-b border-maybe/40 bg-maybe-bg/60 px-3 py-1.5 text-ink">
+          {resolverNote}
+        </p>
+      ) : null}
+
+      {sentence ? (
+        <Row label="detail">
+          <span className="text-ink">{sentence}</span>
+        </Row>
+      ) : null}
+
       <Row label="trigger">{semantics.trigger}</Row>
+
+      {missingDocs.length > 0 ? (
+        <div className="border-t border-line px-3 py-2.5">
+          <p className="t-label mb-2">
+            document{missingDocs.length === 1 ? "" : "s"} required &middot; not in this corpus
+          </p>
+          <ul className="flex flex-col gap-2">
+            {missingDocs.map((doc, i) => (
+              <li key={doc.doc_id ?? i} className="border border-line-strong bg-sunken">
+                <div className="flex flex-wrap items-stretch">
+                  <div className="border-r border-line-strong px-3 py-2">
+                    <p className="t-label !tracking-[0.06em]">kind</p>
+                    <p className="t-mono !text-[13px] font-bold text-ink">
+                      {doc.doc_type ?? "document"}
+                    </p>
+                  </div>
+                  <div className="border-r border-line-strong px-3 py-2">
+                    <p className="t-label !tracking-[0.06em]">dated</p>
+                    <p className="t-mono !text-[13px] text-ink">{doc.dated ?? "undated"}</p>
+                  </div>
+                  <div className="border-r border-line-strong px-3 py-2">
+                    <p className="t-label !tracking-[0.06em]">held</p>
+                    <p className="t-mono !text-[13px] font-bold text-maybe">{String(doc.held === true)}</p>
+                  </div>
+                  <div className="min-w-0 flex-1 px-3 py-2">
+                    <p className="t-label !tracking-[0.06em]">reference</p>
+                    <p className="t-mono !text-[13px] text-ink">{doc.doc_id ?? "unidentified"}</p>
+                  </div>
+                </div>
+                {doc.label ? <p className="t-body border-t border-line px-3 py-1.5 text-ink-2">{doc.label}</p> : null}
+                {doc.source_quote ? (
+                  <p className="t-body border-t border-line px-3 py-1.5 text-ink-3">
+                    &ldquo;{doc.source_quote}&rdquo;
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+          <p className="t-mono mt-2 text-ink-3">
+            The affected set is defined inside the document above. Guessing membership from the AD
+            text alone is exactly the failure mode this refusal exists to prevent.
+          </p>
+        </div>
+      ) : null}
 
       {needConfig ? (
         <>
@@ -167,18 +260,20 @@ export function RefusalCard({ refusal, paragraphs, onSupplyValue }: RefusalCardP
       {scope ? <Row label="scope">{scope}</Row> : null}
 
       <Row label="resolved by">
-        <span className="text-ink">{refusal.resolvable_by}</span>
-        <span className="t-mono ml-2 text-ink-3">(contract resolvable_by)</span>
+        <span className="text-ink">{refusal.resolvable_by}</span>{" "}
+        <span className="t-mono text-ink-3">(as the engine reported it)</span>
       </Row>
 
       {evidence.length > 0 ? (
         <div className="border-t border-line bg-sunken/50 px-3 py-2.5">
-          <p className="t-label mb-2">standing on</p>
+          <p className="t-label mb-2">
+            standing on{moreEvidence > 0 ? ` · ${evidence.length} of ${resolved.length} shown` : ""}
+          </p>
           <ul className="flex flex-col gap-2.5">
             {evidence.map((p) => (
               <li key={p.paragraph_id}>
                 <p className="t-mono mb-1 text-ink-3">
-                  {p.revision_id} &para;({p.label}) {p.heading}
+                  {p.revision_id} {paragraphRef(p.label)} {p.heading}
                 </p>
                 <QuoteInText
                   text={p.text}

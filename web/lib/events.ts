@@ -8,6 +8,7 @@
 import {
   COMPLIANCE_BASIS,
   SSE_PAYLOAD_KEYS,
+  type AnswerStatus,
   type Authority,
   type ComplianceBasis,
   type Decision,
@@ -18,6 +19,7 @@ import {
   type RuleOperator,
   type Source,
   type SseEventName,
+  type TraversalOutcome,
 } from "./contract";
 
 /* ---------------------------------------------------------------- nodes --- */
@@ -25,6 +27,8 @@ import {
 export interface ParagraphNode {
   readonly paragraph_id: string;
   readonly revision_id: string;
+  /** Carried by the live retrieval hit; the AD this paragraph's revision belongs to. */
+  readonly ad_number?: string | null;
   readonly label: string;
   readonly role: ParagraphRole;
   readonly heading: string;
@@ -32,7 +36,12 @@ export interface ParagraphNode {
   /** Offset of this paragraph's first character in its Revision's plain text. */
   readonly char_start: number;
   readonly char_end: number;
-  readonly ordinal: number;
+  /**
+   * Position within the revision. The live `retrieval` event does not carry it
+   * (hits are ordered by fused score, not by document order), so it is optional
+   * and filled from the hit index when the engine omits it.
+   */
+  readonly ordinal?: number;
 }
 
 export interface RevisionNode {
@@ -128,20 +137,79 @@ export interface QueryPlan {
   readonly ambiguities: readonly string[];
 }
 
-/** Field a parsed chip belongs to. rule_field plus the plan's own slots. */
-export type EntityField = RuleField | "ad_number" | "docket_id" | "topic" | "tail_number";
+/**
+ * Field a parsed chip belongs to: rule_field, the plan's own slots, and the
+ * remaining buckets the live entity pass emits (`amendments`, `ata_chapters`,
+ * `foreign_ads`, `ambiguous`). The contract pins `entities` as a payload key but
+ * not its shape; see docs/contract_change_requests.md.
+ */
+export type EntityField =
+  | RuleField
+  | "ad_number"
+  | "docket_id"
+  | "topic"
+  | "tail_number"
+  | "amendment"
+  | "ata_chapter"
+  | "foreign_ad"
+  | "ambiguous";
 
 export interface Entity {
   readonly field: EntityField;
   readonly value: string;
   /** [start, end) in the raw query text, so a chip can point at what it read. */
   readonly span: readonly [number, number];
-  readonly confidence: number;
+  /**
+   * Absent on the live wire: the entity pass is deterministic code, not a
+   * scorer, so it publishes no confidence. The UI states "deterministic match"
+   * rather than inventing a number.
+   */
+  readonly confidence?: number;
 }
 
 /* ----------------------------------------------------------- proof tree --- */
 
 export type ProofNodeKind = "all" | "any" | "condition";
+
+/** The fleet record the rules engine decided against, as the engine reports it. */
+export interface ProofAircraft {
+  readonly tail_number?: string | null;
+  readonly manufacturer?: string | null;
+  readonly model?: string | null;
+  readonly typecode?: string | null;
+  readonly serial_number?: string | null;
+  readonly operator?: string | null;
+}
+
+/**
+ * A document the revision delegates to and the corpus does not hold. Mirrors the
+ * `external_documents` entries of the live proof tree; every field is the
+ * engine's own, none derived in the UI.
+ */
+export interface ExternalDocumentRef {
+  readonly doc_type?: string | null;
+  readonly doc_id?: string | null;
+  readonly label?: string | null;
+  readonly dated?: string | null;
+  readonly held?: boolean;
+  readonly scope?: string | null;
+  readonly role?: ParagraphRole | string | null;
+  readonly paragraph_id?: string | null;
+  readonly source_quote?: string | null;
+}
+
+/**
+ * Legal stage of the revision the decision came from, as produced by
+ * engine/graph/stage.py. Treated as opaque text by the UI: it is rendered, never
+ * compared against a literal, so a new contract document_stage needs no UI edit.
+ */
+export interface RevisionStageNote {
+  readonly document_stage?: string | null;
+  readonly effective_on?: string | null;
+  readonly superseded_by?: string | null;
+  readonly imposes_obligation_now?: boolean;
+  readonly explanation?: string | null;
+}
 
 /**
  * One node of the `decision` event's proof_tree. `decision` on every node is the
@@ -162,9 +230,32 @@ export interface ProofTreeNode {
   readonly source_quote?: string;
   readonly citation_id?: string;
   readonly unparsed_reason?: string | null;
+  /** Why the rules engine reached this node's outcome, in the engine's words. */
+  readonly reason?: string | null;
   /** Set when this node is blocked on a document the corpus does not hold. */
   readonly external_ref?: string | null;
+  /** Root only: the fleet record and the revision the decision was made against. */
+  readonly revision_id?: string | null;
+  readonly aircraft?: ProofAircraft | null;
+  readonly stage?: RevisionStageNote | null;
+  readonly external_documents?: readonly ExternalDocumentRef[];
   readonly children?: readonly ProofTreeNode[];
+}
+
+/**
+ * What the `decision` event carries when the rules engine could not run at all -
+ * no aircraft resolved, no rules extracted for the retrieved revision. The
+ * reason is the engine's own sentence and is shown verbatim: "no decision" is
+ * information, not a loading state.
+ */
+export interface ProofTreeUnavailable {
+  readonly unavailable: string;
+}
+
+export function isProofTreeUnavailable(
+  tree: ProofTreeNode | ProofTreeUnavailable,
+): tree is ProofTreeUnavailable {
+  return "unavailable" in tree;
 }
 
 /* -------------------------------------------------------------- refusal --- */
@@ -225,10 +316,11 @@ export interface RetrievalPayload {
   readonly stage_ms: number;
 }
 export interface DecisionPayload {
-  readonly decision: Decision;
+  /** null when the rules engine could not run; proof_tree then says why. */
+  readonly decision: Decision | null;
   readonly fired_rule_ids: readonly string[];
   readonly unknown_fields: readonly RuleField[];
-  readonly proof_tree: ProofTreeNode;
+  readonly proof_tree: ProofTreeNode | ProofTreeUnavailable;
   readonly stage_ms: number;
 }
 export interface AnswerDeltaPayload {
@@ -236,23 +328,98 @@ export interface AnswerDeltaPayload {
   readonly citation_ids: readonly string[];
   readonly index: number;
 }
+/**
+ * Why one drafted sentence was dropped. `reason` is a stable code from
+ * engine/verify/verifier.py, so the UI can show the machine vocabulary next to
+ * the prose rather than paraphrasing it.
+ */
+export interface DropReason {
+  readonly index: number;
+  readonly citation_id: string | null;
+  readonly reason: string;
+  readonly detail: string | null;
+}
+
 export interface VerificationPayload {
   /** answer_delta.index values that survived verification. */
   readonly kept: readonly number[];
   readonly dropped: readonly number[];
-  /** index (as a string key) -> why it was dropped. */
-  readonly drop_reasons: Readonly<Record<string, string>>;
+  readonly drop_reasons: readonly DropReason[];
   readonly stage_ms: number;
+  /**
+   * Set only if a build of the engine reports kept/dropped as counts instead of
+   * naming indices. The counts stay counts: expanding one into a set of
+   * sentence indices would guess which sentence survived, which is the single
+   * thing the verification gate exists to prevent.
+   */
+  readonly counted?: { readonly kept: number; readonly dropped: number } | null;
 }
 export interface RefusalPayload<C extends RefusalCode = RefusalCode> {
+  /**
+   * The keyed detail object when the engine sends one, or the engine's own
+   * sentence. The live service sends a sentence; it is rendered verbatim rather
+   * than reshaped into fields the payload does not contain.
+   */
   readonly code: C;
-  readonly detail: RefusalDetailByCode[C];
+  readonly detail: RefusalDetailByCode[C] | string;
   readonly resolvable_by: string;
   readonly evidence_paragraph_ids: readonly string[];
 }
+/* -------------------------------------------------------------- envelope --- */
+
+export interface RevisionStatus {
+  readonly revision_id: string | null;
+  readonly superseded_by: string | null;
+  readonly current: boolean;
+}
+
+export interface EnvelopeCitation {
+  readonly sentence_index: number;
+  readonly text: string;
+  readonly citation_ids: readonly string[];
+  readonly supporting_citation_id: string | null;
+}
+
+/**
+ * Reference traversal. `outcome` is null when traversal did not run, and then
+ * `reason` says so: the contract has no enum member for "not attempted", and
+ * inventing one is exactly what the contract gate exists to catch.
+ */
+export interface TraversalReport {
+  readonly outcome: TraversalOutcome | null;
+  readonly reason?: string | null;
+  readonly followed: readonly string[];
+  readonly missing: readonly string[];
+}
+
+/**
+ * contract.answer_envelope: the full shape of a delivered answer. A blocking
+ * refusal carries one too, with answer_status REFUSED - a refusal is a delivered
+ * answer, so it still has to say what was established and what would resolve it.
+ */
+export interface AnswerEnvelope {
+  readonly answer_status: AnswerStatus;
+  readonly document_stage: string;
+  readonly applicability_result: Decision | null;
+  readonly evaluated_conditions: ProofTreeNode | ProofTreeUnavailable;
+  readonly revision_status: RevisionStatus;
+  readonly citations: readonly EnvelopeCitation[];
+  /** What the user could supply to resolve a NEED_CONFIG, named exactly. */
+  readonly missing_inputs: readonly string[];
+  /** What this answer does NOT establish. Shown, never hidden in a tooltip. */
+  readonly limitations: readonly string[];
+  readonly traversal: TraversalReport;
+}
+
 export interface DonePayload {
   readonly total_ms: number;
   readonly stage_timings: Readonly<Record<string, number>>;
+  /**
+   * Optional in the type, required on the wire: an engine that ends a run
+   * without one has not delivered an answer envelope, and the UI says that
+   * rather than rendering an empty one as though it were complete.
+   */
+  readonly envelope?: AnswerEnvelope;
 }
 export interface ErrorPayload {
   readonly message: string;

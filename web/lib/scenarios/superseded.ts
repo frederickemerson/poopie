@@ -8,7 +8,7 @@ import { AD_A330_RMP, CITE_A330_RMP, REV_2025_07990, REV_2026_22390 } from "../c
 import { REFUSAL_SEMANTICS } from "../contract";
 import { aircraftByTail } from "../fleet";
 import type { EngineEvent, RefusalPayload } from "../events";
-import { adAndRevision, entity, emptyPlan, retrievalOf, stageTimings, type Frame, type Scenario } from "./shared";
+import { adAndRevision, entity, emptyPlan, retrievalOf, envelopeFor, stageTimings, type Frame, type Scenario } from "./shared";
 
 const QUERY = "What does AD 2025-09-07 require for N401DZ?";
 const asked = adAndRevision(AD_A330_RMP, 0);
@@ -131,14 +131,18 @@ const frames: Frame[] = [
     delay_ms: 140,
     event: {
       event: "verification",
-      data: { kept: [0, 1, 2, 3], dropped: [], drop_reasons: {}, stage_ms: 17 },
+      data: { kept: [0, 1, 2, 3], dropped: [], drop_reasons: [], stage_ms: 17 },
     },
   },
 ];
 
 frames.push({
   delay_ms: 60,
-  event: { event: "done", data: { total_ms: 1241, stage_timings: stageTimings(frames) } } satisfies EngineEvent,
+  event: { event: "done", data: { total_ms: 1241, stage_timings: stageTimings(frames), envelope: envelopeFor(frames, {
+      revisionId: REV_2025_07990.revision.revision_id,
+      supersededBy: REV_2026_22390.revision.revision_id,
+      documentStage: "SUPERSEDED",
+    }) } } satisfies EngineEvent,
 });
 
 export const SUPERSEDED_SCENARIO: Scenario = {

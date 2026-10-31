@@ -1,6 +1,17 @@
 /** Helpers shared by the four scenarios. */
-import type { RefusalCode } from "../contract";
-import type { EngineEvent, Entity, ParagraphNode, QueryPlan, RetrievalPayload } from "../events";
+import { REFUSAL_SEMANTICS, type AnswerStatus, type RefusalCode } from "../contract";
+import type {
+  AnswerDeltaPayload,
+  AnswerEnvelope,
+  DecisionPayload,
+  EngineEvent,
+  Entity,
+  ParagraphNode,
+  QueryPlan,
+  RefusalPayload,
+  RetrievalPayload,
+  VerificationPayload,
+} from "../events";
 import type { AdEntry, RevisionEntry } from "../corpus";
 import type { FleetAircraft } from "../fleet";
 
@@ -92,6 +103,91 @@ export function retrievalOf(
     scores[p.paragraph_id] = Number((topScore - i * 0.047).toFixed(3));
   });
   return { paragraphs: all, scores, stage_ms };
+}
+
+/**
+ * The `done` envelope for a recorded scenario, derived from the scenario's own
+ * frames rather than written out a second time.
+ *
+ * contract.answer_envelope requires every field to be present, and the mock has
+ * to be wire-identical to the live service or the dev toggle stops being a fair
+ * fallback. Deriving it means a scenario cannot drift from its own envelope: the
+ * decision, the refusals and the verification result all come from the frames
+ * that were already declared above it.
+ */
+export function envelopeFor(
+  frames: readonly Frame[],
+  options: {
+    readonly revisionId: string;
+    readonly supersededBy?: string | null;
+    readonly documentStage: string;
+    readonly limitations?: readonly string[];
+  },
+): AnswerEnvelope {
+  const decision = frames.find((f) => f.event.event === "decision")?.event.data as
+    | DecisionPayload
+    | undefined;
+  const verification = frames.find((f) => f.event.event === "verification")?.event.data as
+    | VerificationPayload
+    | undefined;
+  const refusals = frames
+    .filter((f) => f.event.event === "refusal")
+    .map((f) => f.event.data as RefusalPayload);
+  const deltas = frames
+    .filter((f) => f.event.event === "answer_delta")
+    .map((f) => f.event.data as AnswerDeltaPayload);
+
+  const kept = verification?.kept ?? [];
+  const blocking = refusals.filter((r) => REFUSAL_SEMANTICS[r.code].blocks_answer);
+
+  const limitations = [...(options.limitations ?? [])];
+  for (const refusal of blocking) {
+    limitations.push(
+      `${refusal.code}: ${REFUSAL_SEMANTICS[refusal.code].trigger} Resolvable by: ${refusal.resolvable_by}.`,
+    );
+  }
+  if (verification && verification.dropped.length > 0) {
+    limitations.push(
+      `${verification.dropped.length} drafted sentence(s) failed citation verification and are not shown.`,
+    );
+  }
+
+  const status: AnswerStatus =
+    blocking.length > 0 ? "REFUSED" : (verification?.dropped.length ?? 0) > 0 ? "PARTIAL" : "ANSWERED";
+
+  return {
+    answer_status: status,
+    document_stage: options.documentStage,
+    applicability_result: decision?.decision ?? null,
+    evaluated_conditions: decision?.proof_tree ?? {
+      unavailable: "This scenario emitted no applicability decision.",
+    },
+    revision_status: {
+      revision_id: options.revisionId,
+      superseded_by: options.supersededBy ?? null,
+      current: (options.supersededBy ?? null) === null,
+    },
+    citations: kept.flatMap((index) => {
+      const delta = deltas.find((d) => d.index === index);
+      if (!delta) return [];
+      return [
+        {
+          sentence_index: delta.index,
+          text: delta.sentence,
+          citation_ids: delta.citation_ids,
+          supporting_citation_id: delta.citation_ids[0] ?? null,
+        },
+      ];
+    }),
+    missing_inputs: decision?.unknown_fields ?? [],
+    limitations,
+    traversal: {
+      outcome: null,
+      reason: "reference traversal did not run for this recorded scenario",
+      followed: [],
+      missing: [],
+    },
+  };
 }
 
 export function stageTimings(frames: readonly Frame[]): Record<string, number> {

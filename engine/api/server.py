@@ -33,6 +33,7 @@ from engine.retrieval.index import load_index
 from engine.retrieval.plan import plan_query
 from engine.retrieval.search import search
 from engine.verify.gate import evaluate_gate
+from engine.verify.refusals import resolvable_by as refusal_resolver
 from engine.verify.verifier import verify
 
 app = FastAPI(title="AD traceability engine")
@@ -303,7 +304,11 @@ def _stream(q: str, tail_number: str | None) -> Iterator[str]:
             {
                 "code": "NO_EVIDENCE",
                 "detail": thin_detail,
-                "resolvable_by": [],
+                # Prose naming who can resolve this, read from the contract's
+                # refusal_semantics. It is a string for every other producer;
+                # this one emitted [] and was the second half of the type
+                # inconsistency that made a consumer iterate a string.
+                "resolvable_by": refusal_resolver("NO_EVIDENCE"),
                 "evidence_paragraph_ids": sorted(retrieved),
             },
         )

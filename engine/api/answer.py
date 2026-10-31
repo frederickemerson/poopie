@@ -388,10 +388,16 @@ def build_envelope(
             "verification and are not shown."
         )
 
+    # missing_inputs names FIELDS, so it comes from the decision's
+    # unknown_fields, which are already rule_field enum values.
+    #
+    # It must NOT come from a refusal's resolvable_by. That field is prose
+    # naming *who* can resolve the refusal ("load the referenced document",
+    # "the engineer supplies the value"), and an earlier version of this
+    # function extended a list with it. Being a string, it extended one
+    # character at a time and emitted [" ", "a", "e", "equipment", "g", ...]:
+    # a list of letters presented as the fields an engineer should supply.
     missing_inputs: list[str] = []
-    for refusal in refusals:
-        if refusal.get("code") == "NEED_CONFIG":
-            missing_inputs.extend(refusal.get("resolvable_by") or [])
     if decision is not None:
         missing_inputs.extend(list(getattr(decision, "unknown_fields", ()) or ()))
 

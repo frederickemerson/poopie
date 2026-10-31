@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import type { ResolvedCitation } from "@/lib/citation";
 import { useMotionPrefs } from "@/lib/motion";
-import type { DecisionPayload, ProofTreeNode } from "@/lib/events";
+import { isProofTreeUnavailable, type DecisionPayload, type ProofTreeNode } from "@/lib/events";
 import { DecisionChip, StatusGlyph, TONE } from "../ui/StatusGlyph";
 
 interface ProofTreeProps {
@@ -28,8 +28,15 @@ export function ProofTree({ decision, resolve, onFocusCitation, subjectLabel }: 
     return <p className="t-mono px-3 py-3 text-ink-3">awaiting the applicability decision&hellip;</p>;
   }
 
+  if (isProofTreeUnavailable(decision.proof_tree)) {
+    return <NoDecision reason={decision.proof_tree.unavailable} stageMs={decision.stage_ms} />;
+  }
+
   const tree = decision.proof_tree;
   const children = tree.children ?? [];
+  const aircraft = tree.aircraft ?? null;
+  const stage = tree.stage ?? null;
+  const subject = aircraft?.tail_number ?? subjectLabel;
 
   return (
     <div className="flex flex-col px-3 py-3">
@@ -38,7 +45,7 @@ export function ProofTree({ decision, resolve, onFocusCitation, subjectLabel }: 
           <p className="t-mono truncate font-semibold text-ink">{tree.label}</p>
           <p className="t-label mt-0.5">
             {tree.kind === "all" ? "all conditions must hold" : "any condition may hold"}
-            {subjectLabel ? ` · against ${subjectLabel}` : ""}
+            {subject ? ` · against ${subject}` : ""}
           </p>
         </div>
         <motion.div
@@ -46,9 +53,27 @@ export function ProofTree({ decision, resolve, onFocusCitation, subjectLabel }: 
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: dur(200), delay: stagger(RESOLVE_STEP_MS) * children.length }}
         >
-          <DecisionChip decision={decision.decision} />
+          {decision.decision === null ? (
+            <span className="t-mono border border-line px-1.5 py-0.5 text-ink-3">no decision</span>
+          ) : (
+            <DecisionChip decision={decision.decision} />
+          )}
         </motion.div>
       </header>
+
+      {aircraft ? <FleetRecordRow aircraft={aircraft} /> : null}
+
+      {stage?.document_stage ? (
+        <p
+          className="t-body mb-3 border-l-2 border-line-strong pl-2 text-ink-2"
+          title="legal stage of the revision, derived from effective_on and superseded_by"
+        >
+          <span className="t-mono font-semibold text-ink">
+            {stage.document_stage.replace(/_/g, " ").toLowerCase()}
+          </span>
+          {stage.explanation ? ` — ${stage.explanation}` : null}
+        </p>
+      ) : null}
 
       <ol className="relative flex flex-col" aria-label="applicability conditions">
         <span aria-hidden className="absolute bottom-3 left-[7px] top-0 w-px bg-line" />
@@ -63,6 +88,12 @@ export function ProofTree({ decision, resolve, onFocusCitation, subjectLabel }: 
           />
         ))}
       </ol>
+
+      {children.length === 0 ? (
+        <p className="t-body text-ink-2">
+          The engine returned no conditions for this revision, so there is nothing to check against.
+        </p>
+      ) : null}
 
       <dl className="t-mono mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 border-t border-line pt-2 text-ink-3">
         <dt>fired rules</dt>
@@ -80,6 +111,68 @@ export function ProofTree({ decision, resolve, onFocusCitation, subjectLabel }: 
   );
 }
 
+/**
+ * No decision, said plainly. The engine reports exactly which precondition was
+ * missing - no aircraft resolved, no rules extracted for the retrieved revision
+ * - and that sentence is the content. Rendering a spinner or an empty panel here
+ * would turn a definite answer into an apparent hang.
+ */
+function NoDecision({ reason, stageMs }: { readonly reason: string; readonly stageMs: number }) {
+  const { dur } = useMotionPrefs();
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: dur(200), ease: [0.2, 0.8, 0.2, 1] }}
+      aria-label="no applicability decision"
+      className="m-3 border border-line-strong bg-sunken/60"
+    >
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-3 py-2">
+        <span aria-hidden className="t-mono !text-[13px] font-bold text-ink-3">
+          &#9671;
+        </span>
+        <h3 className="t-mono !text-[13px] font-bold tracking-tight text-ink">
+          no applicability decision
+        </h3>
+        <span className="t-label !tracking-[0.06em] text-ink-3">rules engine did not run</span>
+      </header>
+      <div className="px-3 py-2.5">
+        <p className="t-body text-ink">{reason}</p>
+        <p className="t-body mt-2 text-ink-2">
+          This is the engine declining to decide, not a failure to respond. Retrieval and the cited
+          paragraphs below are still real; only the applicability verdict is absent, because one of
+          its inputs was.
+        </p>
+      </div>
+      <p className="t-mono border-t border-line px-3 py-1.5 text-ink-3">
+        reported by the applicability stage in {stageMs} ms
+      </p>
+    </motion.section>
+  );
+}
+
+/** The record the decision was made against, as the engine reported it. */
+function FleetRecordRow({ aircraft }: { readonly aircraft: NonNullable<ProofTreeNode["aircraft"]> }) {
+  const fields: readonly (readonly [string, string | null | undefined])[] = [
+    ["tail", aircraft.tail_number],
+    ["operator", aircraft.operator],
+    ["model", aircraft.model],
+    ["typecode", aircraft.typecode],
+    ["MSN", aircraft.serial_number],
+    ["mfr", aircraft.manufacturer],
+  ];
+  return (
+    <dl className="t-mono mb-3 flex flex-wrap gap-x-3 gap-y-0.5 border border-line bg-sunken px-2 py-1.5 text-ink-3">
+      {fields.map(([label, value]) => (
+        <div key={label} className="flex items-baseline gap-1">
+          <dt className="t-label !tracking-[0.06em]">{label}</dt>
+          <dd className={value ? "text-ink-2" : "text-maybe"}>{value ?? "not in record"}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 interface ConditionRowProps {
   readonly node: ProofTreeNode;
   readonly delay: number;
@@ -93,6 +186,8 @@ function ConditionRow({ node, delay, duration, resolve, onFocusCitation }: Condi
   const citation = node.citation_id ? resolve(node.citation_id) : null;
   const have = node.aircraft_value;
   const ariaValue = have === null || have === undefined ? "not in the fleet record" : have;
+  // The unparsed callout already carries the reason; do not print it twice.
+  const reason = node.reason && node.reason !== node.unparsed_reason ? node.reason : null;
 
   return (
     <motion.li
@@ -142,6 +237,12 @@ function ConditionRow({ node, delay, duration, resolve, onFocusCitation }: Condi
             {node.unparsed_reason ? (
               <p className="t-body mt-1 border-l-2 border-maybe pl-2 text-maybe">
                 {node.unparsed_reason}
+              </p>
+            ) : null}
+            {reason ? <p className="t-body mt-1 text-ink-2">{reason}</p> : null}
+            {node.external_ref ? (
+              <p className="t-mono mt-1 text-maybe">
+                document required: <span className="font-semibold">{node.external_ref}</span>
               </p>
             ) : null}
             {citation ? (

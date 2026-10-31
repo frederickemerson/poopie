@@ -35,6 +35,12 @@ interface FleetCellProps {
   readonly aircraft: FleetAircraft;
   readonly decision: Decision;
   readonly unknownFields: readonly string[];
+  /**
+   * Why the decision was withheld, one line per blocking field. Shown on hover
+   * and read out in the accessible label, so an amber cell always says what
+   * would have to be known to settle it.
+   */
+  readonly reason?: string;
   readonly changed: boolean;
   readonly selected: boolean;
   readonly delay: number;
@@ -46,6 +52,7 @@ export function FleetCell({
   aircraft,
   decision,
   unknownFields,
+  reason,
   changed,
   selected,
   delay,
@@ -53,7 +60,11 @@ export function FleetCell({
   onOpen,
 }: FleetCellProps) {
   const tone = FLEET_TONE[decision];
-  const reason = unknownFields.length > 0 ? ` (unknown: ${unknownFields.join(", ")})` : "";
+  const fields = unknownFields.length > 0 ? ` (unknown: ${unknownFields.join(", ")})` : "";
+  const why = reason && reason !== "" ? `\n${reason}` : "";
+  // The fleet matrix payload carries no serial number, so the label leaves it
+  // out rather than announcing its absence on all 478 cells.
+  const msn = aircraft.serial_number === "" ? "" : `, MSN ${aircraft.serial_number}`;
   return (
     <motion.button
       type="button"
@@ -62,8 +73,8 @@ export function FleetCell({
       animate={{ opacity: 1, rotateY: 0, scale: 1 }}
       transition={{ duration, delay, ease: [0.2, 0.8, 0.2, 1] }}
       onClick={() => onOpen(aircraft.tail_number)}
-      aria-label={`${aircraft.tail_number}, ${aircraft.operator}, ${aircraft.model}, MSN ${aircraft.serial_number}: ${decision}, ${tone.word}${reason}`}
-      title={`${aircraft.tail_number} · ${aircraft.model} · MSN ${aircraft.serial_number}\n${decision}${reason}`}
+      aria-label={`${aircraft.tail_number}, ${aircraft.operator}, ${aircraft.model}${msn}: ${decision}, ${tone.word}${fields}${why}`}
+      title={`${aircraft.tail_number} · ${aircraft.model}${msn}\n${decision}${fields}${why}`}
       style={changed ? ({ "--ring-c": tone.ring } as React.CSSProperties) : undefined}
       className={[
         "grid h-[26px] w-[26px] place-items-center border text-[11px] font-semibold leading-none",
