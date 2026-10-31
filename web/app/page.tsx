@@ -58,10 +58,10 @@ const STRENGTHS: readonly { readonly title: string; readonly body: string }[] = 
 
 /** The product surface, stated as the things an engineer actually types. */
 // Each of these was run against the engine and the note says what it actually
-// returned -- two answers of different kinds, and two refusals of different
-// kinds. An example question is a promise, and the page previously made four
-// the engine could not keep, one of them about AD 2019-08-11, which is not in
-// this corpus and so could only ever refuse.
+// returned -- three answers of different kinds, and the refusal. An example
+// question is a promise, and the page previously made four the engine could
+// not keep, one of them about AD 2019-08-11, which is not in this corpus and
+// so could only ever refuse.
 const ASKS: readonly { readonly q: string; readonly note: string }[] = [
   {
     q: "What is the unsafe condition addressed by AD 2009-17-05?",
@@ -77,7 +77,7 @@ const ASKS: readonly { readonly q: string; readonly note: string }[] = [
   },
   {
     q: "What are the latest ADs?",
-    note: "refused: it names no directive, docket or aircraft, so there is nothing to decide",
+    note: "the newest directives in this corpus, ordered in code from the index",
   },
 ];
 
@@ -325,10 +325,9 @@ export default function Landing() {
                 </h2>
                 <p className="t-answer max-w-[64ch] text-ink-2">
                   These four were run against the engine and the note says what came back.
-                  Two of them refuse, which is the behaviour and not the exception: a
-                  question whose evidence is in a bulletin we do not hold, and a question
-                  that names no aircraft at all, both have an honest answer, and it is not
-                  a guess.
+                  One of them refuses, which is the behaviour and not the exception: the
+                  evidence for it sits in a Boeing bulletin this corpus does not hold, and
+                  saying so is an honest answer where a guess would not be.
                 </p>
               </Reveal>
 
