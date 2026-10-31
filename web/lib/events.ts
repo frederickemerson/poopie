@@ -12,17 +12,56 @@ import {
   type Authority,
   type ComplianceBasis,
   type Decision,
+  type DocumentStage,
   type Intent,
   type ParagraphRole,
   type RefusalCode,
   type RuleField,
   type RuleOperator,
   type Source,
+  type SourceKind,
   type SseEventName,
   type TraversalOutcome,
 } from "./contract";
 
 /* ---------------------------------------------------------------- nodes --- */
+
+/**
+ * The findable half of a citation, from engine/api/citations.py.
+ *
+ * A citation id is an exact character anchor and stays one; this is what a
+ * reader takes to paper beside it. Every field the source does not hold is
+ * `null` and named in `not_recorded`, so the UI can say "not recorded" instead
+ * of printing a page number nobody published.
+ *
+ * `document_stage` is never absent: the engine cannot construct one of these
+ * without a contract stage, which is what lets every pill show it.
+ */
+export interface HumanReference {
+  readonly citation_id: string;
+  readonly document_id: string;
+  readonly source_kind: SourceKind | null;
+  readonly document_stage: DocumentStage;
+  /** One sentence from engine/graph/stage.py. For a proposal it says so. */
+  readonly stage_note: string;
+  readonly is_proposal: boolean;
+  /** record_id for a proposal, AD number for an adopted AD. */
+  readonly handle: string;
+  readonly ad_number: string | null;
+  readonly record_id: string | null;
+  /** "91 FR 66019". Null when the source gave no citation in that form. */
+  readonly fr_citation: string | null;
+  /** "66019-66022", from the source's own page integers. */
+  readonly page_range: string | null;
+  /** The source's citation verbatim when it is not in "91 FR 66019" form. */
+  readonly source_citation_text: string | null;
+  readonly paragraph_label: string;
+  readonly paragraph_role: ParagraphRole | null;
+  readonly federal_register_link: string | null;
+  readonly not_recorded: readonly string[];
+  /** The whole reference on one line, as the engine composed it. */
+  readonly display: string;
+}
 
 export interface ParagraphNode {
   readonly paragraph_id: string;
@@ -42,6 +81,14 @@ export interface ParagraphNode {
    * and filled from the hit index when the engine omits it.
    */
   readonly ordinal?: number;
+  /** The paragraph's own full-span citation id, as the engine computed it. */
+  readonly citation_id?: string;
+  /**
+   * The human reference for this paragraph's document. Optional because an
+   * engine build older than contract 1.2.0 does not send one; when it is
+   * missing the UI says the stage was not reported rather than assuming one.
+   */
+  readonly human_reference?: HumanReference;
 }
 
 export interface RevisionNode {
@@ -55,6 +102,10 @@ export interface RevisionNode {
   readonly full_text_xml_url: string | null;
   readonly is_current: boolean;
   readonly superseded_by: string | null;
+  /** "91 FR 67442", from the Federal Register index. Null when not held. */
+  readonly fr_citation: string | null;
+  readonly start_page: number | null;
+  readonly end_page: number | null;
 }
 
 export interface NprmNode {
@@ -378,6 +429,12 @@ export interface EnvelopeCitation {
   readonly text: string;
   readonly citation_ids: readonly string[];
   readonly supporting_citation_id: string | null;
+  /**
+   * One reference per entry in `citation_ids`, in the same order. Optional for
+   * the same reason as `ParagraphNode.human_reference`: an older engine build
+   * does not send them.
+   */
+  readonly references?: readonly HumanReference[];
 }
 
 /**

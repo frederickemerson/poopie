@@ -10,16 +10,37 @@ interface QueryBarProps {
   readonly streaming: boolean;
   /** When this changes, the text types itself in, then the run starts. */
   readonly typeIn: { readonly text: string; readonly nonce: number } | null;
+  /**
+   * "hero" is the empty state: the question is the only thing on the page, so
+   * it gets the page's largest input and the examples sit under it. "docked"
+   * is every state after that, where an answer is already on screen and the
+   * composer is a quiet strip at the bottom of it.
+   */
+  readonly variant?: "hero" | "docked";
+  /** Example questions, offered only when there is nothing to read yet. */
+  readonly suggestions?: readonly string[];
+  readonly onPick?: (question: string) => void;
 }
 
 const TYPE_MS = 11;
 
 /**
- * The question, in plain English. When a scenario is replayed the text types
- * itself in so the chips arrive the way they do for a real operator; under
- * reduced motion the text is set in one step and the run starts immediately.
+ * The question, in plain English, and the only way into the engine.
+ *
+ * When a scenario is replayed the text types itself in so the chips arrive the
+ * way they do for a real operator; under reduced motion the text is set in one
+ * step and the run starts immediately.
  */
-export function QueryBar({ value, onChange, onSubmit, streaming, typeIn }: QueryBarProps) {
+export function QueryBar({
+  value,
+  onChange,
+  onSubmit,
+  streaming,
+  typeIn,
+  variant = "docked",
+  suggestions = [],
+  onPick,
+}: QueryBarProps) {
   const { reduced } = useMotionPrefs();
   const [typing, setTyping] = useState(false);
   const ref = useRef<HTMLTextAreaElement | null>(null);
@@ -53,45 +74,87 @@ export function QueryBar({ value, onChange, onSubmit, streaming, typeIn }: Query
     };
   }, [typeIn, reduced]);
 
+  // The box grows with the question instead of scrolling inside three fixed
+  // rows: an engineer pasting a tail number, a model and a serial should be
+  // able to see all of it before pressing ask.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+  }, [value]);
+
+  const hero = variant === "hero";
+  const busy = streaming || typing;
+
   return (
-    <form
-      className="flex flex-col gap-2 p-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit();
-      }}
-    >
-      <label htmlFor="query" className="t-label">
-        question
-      </label>
-      <textarea
-        id="query"
-        ref={ref}
-        rows={3}
-        value={value}
-        spellCheck={false}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            onSubmit();
-          }
+    <div className="flex flex-col gap-3">
+      <form
+        className="group relative flex flex-col border border-line-strong bg-sunken focus-within:border-accent"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit();
         }}
-        placeholder="Which ADs apply to N117UW, an A320-214 with MSN 1224?"
-        className="t-body w-full resize-none border border-line bg-sunken px-2.5 py-2 text-ink placeholder:text-ink-3 focus:border-line-strong"
-      />
-      <div className="flex items-center justify-between gap-2">
-        <span className="t-mono text-ink-3">
-          {typing ? "typing…" : streaming ? "streaming" : "↵ to ask"}
-        </span>
-        <button
-          type="submit"
-          disabled={streaming || typing || value.trim().length === 0}
-          className="t-label border border-line-strong bg-sunken px-3 py-1.5 text-ink transition-colors hover:border-accent disabled:cursor-not-allowed disabled:text-ink-3 disabled:hover:border-line-strong"
-        >
-          ask
-        </button>
-      </div>
-    </form>
+      >
+        <label htmlFor="query" className="sr-only">
+          Ask about an airworthiness directive
+        </label>
+        <textarea
+          id="query"
+          ref={ref}
+          rows={hero ? 2 : 1}
+          value={value}
+          spellCheck={false}
+          aria-describedby="query-hint"
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              onSubmit();
+            }
+          }}
+          placeholder="Which ADs apply to N117UW, an A320-214 with MSN 1224?"
+          className={`w-full resize-none bg-transparent px-3.5 pt-3 text-ink outline-none placeholder:text-ink-3 ${
+            hero ? "t-answer" : "t-body"
+          }`}
+        />
+        <div className="flex items-center justify-between gap-3 px-3.5 pb-2.5 pt-1">
+          <p id="query-hint" className="t-mono text-ink-3">
+            {typing
+              ? "typing…"
+              : streaming
+                ? "streaming…"
+                : "Enter to ask · Shift+Enter for a new line"}
+          </p>
+          <button
+            type="submit"
+            disabled={busy || value.trim().length === 0}
+            className="t-label border border-line-strong bg-raised px-3.5 py-1.5 text-ink transition-colors hover:border-accent focus-visible:border-accent disabled:cursor-not-allowed disabled:text-ink-3 disabled:hover:border-line-strong"
+          >
+            {busy ? "asking…" : "ask"}
+          </button>
+        </div>
+      </form>
+
+      {hero && suggestions.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <p className="t-label">or try one of these</p>
+          <ul className="flex flex-col gap-1.5">
+            {suggestions.map((question) => (
+              <li key={question}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onPick?.(question)}
+                  className="t-body w-full border border-line bg-raised px-3 py-2 text-left text-ink-2 transition-colors hover:border-line-strong hover:text-ink focus-visible:border-accent disabled:cursor-not-allowed"
+                >
+                  {question}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
   );
 }

@@ -55,6 +55,12 @@ export const REV_2025_07990 = buildRevision(
     full_text_xml_url: null,
     is_current: false,
     superseded_by: "2026-22390",
+    // This revision's paragraph text is DERIVED, so it has no Federal Register
+    // citation or page range. Null, never a plausible-looking number: the UI
+    // renders it as "not recorded".
+    fr_citation: null,
+    start_page: null,
+    end_page: null,
   },
   [
     {
@@ -113,6 +119,12 @@ export const REV_2026_22390 = buildRevision(
     full_text_xml_url: null,
     is_current: true,
     superseded_by: null,
+    // This revision's paragraph text is DERIVED, so it has no Federal Register
+    // citation or page range. Null, never a plausible-looking number: the UI
+    // renders it as "not recorded".
+    fr_citation: null,
+    start_page: null,
+    end_page: null,
   },
   [
     {

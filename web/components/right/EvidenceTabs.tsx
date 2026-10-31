@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import type { ResolvedCitation } from "@/lib/citation";
 import type { AdEntry } from "@/lib/corpus";
@@ -8,7 +9,20 @@ import type { EngineView } from "@/lib/useEngineStream";
 import { Panel } from "../ui/Panel";
 import { Tabs, type TabSpec } from "../ui/Tabs";
 import { ProofTree } from "./ProofTree";
-import { RetrievalTrace } from "./RetrievalTrace";
+
+/**
+ * React Flow is by far the heaviest thing the page can load, and the trace tab
+ * is the one tab most runs never open. Loading it on demand keeps it out of the
+ * first paint of an answer; `ssr: false` because it measures the DOM it draws
+ * into, so there is nothing for the server to render.
+ */
+const RetrievalTrace = dynamic(
+  () => import("./RetrievalTrace").then((m) => ({ default: m.RetrievalTrace })),
+  {
+    ssr: false,
+    loading: () => <p className="t-mono p-3 text-ink-3">loading retrieval trace&hellip;</p>,
+  },
+);
 import { RevisionTimeline } from "./RevisionTimeline";
 import { SourcePanel } from "./SourcePanel";
 

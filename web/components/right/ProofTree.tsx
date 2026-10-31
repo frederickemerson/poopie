@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import type { ResolvedCitation } from "@/lib/citation";
+import { formatReference, referenceOf, type ResolvedCitation } from "@/lib/citation";
 import { useMotionPrefs } from "@/lib/motion";
 import { isProofTreeUnavailable, type DecisionPayload, type ProofTreeNode } from "@/lib/events";
 import { DecisionChip, StatusGlyph, TONE } from "../ui/StatusGlyph";
@@ -184,6 +184,7 @@ interface ConditionRowProps {
 function ConditionRow({ node, delay, duration, resolve, onFocusCitation }: ConditionRowProps) {
   const tone = TONE[node.decision];
   const citation = node.citation_id ? resolve(node.citation_id) : null;
+  const reference = citation ? referenceOf(citation) : undefined;
   const have = node.aircraft_value;
   const ariaValue = have === null || have === undefined ? "not in the fleet record" : have;
   // The unparsed callout already carries the reason; do not print it twice.
@@ -246,9 +247,22 @@ function ConditionRow({ node, delay, duration, resolve, onFocusCitation }: Condi
               </p>
             ) : null}
             {citation ? (
-              <p className="t-mono mt-1 truncate text-ink-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus:opacity-100">
-                &ldquo;{citation.quote.length > 72 ? `${citation.quote.slice(0, 72)}…` : citation.quote}&rdquo;
-              </p>
+              <>
+                <p className="t-mono mt-1 truncate text-ink-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus:opacity-100">
+                  &ldquo;{citation.quote.length > 72 ? `${citation.quote.slice(0, 72)}…` : citation.quote}&rdquo;
+                </p>
+                {/*
+                  The tree header already states the revision's stage, but a
+                  condition row is itself a rendered citation, and the contract
+                  requires every one of those to show its stage. Stated here
+                  too, so the row can be read on its own.
+                */}
+                <p className="t-mono truncate text-ink-3">
+                  {reference
+                    ? formatReference(reference)
+                    : `${citation.ref.revision_id} · stage not sent`}
+                </p>
+              </>
             ) : null}
           </div>
         </div>

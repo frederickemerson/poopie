@@ -1,7 +1,15 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { citationLabel, paragraphRef, type ResolvedCitation } from "@/lib/citation";
+import {
+  NOT_RECORDED,
+  citationLabel,
+  formatReference,
+  paragraphRef,
+  referenceOf,
+  stageWording,
+  type ResolvedCitation,
+} from "@/lib/citation";
 import { useMotionPrefs } from "@/lib/motion";
 import type { ParagraphNode } from "@/lib/events";
 import { QuoteSpan } from "../ui/QuoteSpan";
@@ -19,6 +27,8 @@ interface SourcePanelProps {
  */
 export function SourcePanel({ citation, paragraphs, scores }: SourcePanelProps) {
   const { dur } = useMotionPrefs();
+  const reference = citation ? referenceOf(citation) : undefined;
+  const stage = stageWording(reference?.document_stage);
 
   return (
     <div className="relative min-h-0 flex-1 overflow-y-auto">
@@ -38,6 +48,24 @@ export function SourcePanel({ citation, paragraphs, scores }: SourcePanelProps) 
               </h3>
               <span className="t-label !tracking-[0.06em]">{citation.paragraph.role}</span>
             </header>
+            {/*
+              The paper reference first, then the character anchor. Both, in
+              that order: the reference is what a reader can check against the
+              Federal Register, the anchor is what the verifier checked.
+            */}
+            {reference ? (
+              <p
+                className={[
+                  "t-body mb-1 border-l-2 pl-2",
+                  reference.is_proposal ? "border-maybe text-maybe" : "border-line-strong text-ink-2",
+                ].join(" ")}
+              >
+                {formatReference(reference)}
+                <span className="t-mono block text-ink-3">{stage.sentence}</span>
+              </p>
+            ) : (
+              <p className="t-mono mb-1 text-ink-3">paper reference {NOT_RECORDED}</p>
+            )}
             <p className="t-mono mb-2 text-ink-3">{citationLabel(citation.ref)}</p>
             <QuoteSpan
               text={citation.paragraph.text}
@@ -45,6 +73,16 @@ export function SourcePanel({ citation, paragraphs, scores }: SourcePanelProps) 
               end={citation.local_end}
             />
             <dl className="t-mono mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 border-t border-line pt-2 text-ink-3">
+              <dt>document</dt>
+              <dd className="text-ink-2">{reference?.handle ?? citation.ref.revision_id}</dd>
+              <dt>FR citation</dt>
+              <dd className="text-ink-2">
+                {reference?.fr_citation ?? reference?.source_citation_text ?? NOT_RECORDED}
+              </dd>
+              <dt>pages</dt>
+              <dd className="text-ink-2">{reference?.page_range ?? NOT_RECORDED}</dd>
+              <dt>document stage</dt>
+              <dd className="text-ink-2">{reference?.document_stage ?? NOT_RECORDED}</dd>
               <dt>paragraph span</dt>
               <dd className="text-ink-2">
                 {citation.paragraph.char_start}&ndash;{citation.paragraph.char_end} in revision text
@@ -84,7 +122,22 @@ export function SourcePanel({ citation, paragraphs, scores }: SourcePanelProps) 
                       <p className="t-mono truncate text-ink">
                         {paragraphRef(p.label)} {p.heading}
                       </p>
-                      <p className="t-mono truncate text-ink-3">{p.paragraph_id}</p>
+                      {/*
+                        The stage rides on every retrieved paragraph, not just
+                        on the cited ones: a proposal in the retrieved set has
+                        to be recognisable as a proposal before any sentence
+                        rests on it.
+                      */}
+                      <p
+                        className={[
+                          "t-mono truncate",
+                          p.human_reference?.is_proposal ? "text-maybe" : "text-ink-3",
+                        ].join(" ")}
+                      >
+                        {p.human_reference
+                          ? formatReference(p.human_reference)
+                          : `${p.paragraph_id} · stage ${NOT_RECORDED}`}
+                      </p>
                     </div>
                     <span className="t-mono tabular-nums text-ink-2">
                       {(scores[p.paragraph_id] ?? 0).toFixed(3)}

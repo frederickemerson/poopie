@@ -12,7 +12,7 @@ export const ENGINE_SOURCES: readonly EngineSource[] = ["engine", "mock"];
 
 export const DEFAULT_ENGINE_SOURCE: EngineSource = "engine";
 
-const STORE_KEY = "autsg.engine-source";
+const STORE_KEY = "poopie.engine-source";
 
 export function isEngineSource(value: unknown): value is EngineSource {
   return value === "engine" || value === "mock";

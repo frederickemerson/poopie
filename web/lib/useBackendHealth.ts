@@ -17,6 +17,16 @@ export interface SpendSummary {
   readonly cache_hits?: number;
 }
 
+/** GET /health's corpus block: the size the latency target applies to. */
+export interface CorpusSummary {
+  readonly kind?: string;
+  readonly paragraphs?: number;
+  readonly ad_numbers?: number;
+  readonly revisions?: number;
+  readonly proposals?: number;
+  readonly federal_register_pages?: number;
+}
+
 export interface BackendHealth {
   readonly reachable: boolean;
   readonly origin?: string;
@@ -26,6 +36,7 @@ export interface BackendHealth {
   readonly llm?: string | null;
   readonly error?: string | null;
   readonly spend?: SpendSummary | null;
+  readonly corpus?: CorpusSummary | null;
 }
 
 export type HealthStatus = "probing" | "ready" | "degraded" | "unreachable";

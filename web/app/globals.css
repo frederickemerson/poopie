@@ -362,3 +362,28 @@ body {
 .react-flow__handle {
   opacity: 0;
 }
+
+/* ---------------------------------------------------------------- pipeline
+
+   The landing diagram draws itself in on mount. Both keyframes end at the
+   element's natural state and use `both` fill, so a browser that never runs
+   them -- or a reader who has asked for reduced motion, where the classes are
+   not applied at all -- sees the finished diagram rather than a blank frame. */
+@keyframes pipe-node-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes pipe-edge-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.pipe-node {
+  animation: pipe-node-in 500ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.pipe-edge {
+  animation: pipe-edge-in 400ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pipe-node,
+  .pipe-edge { animation: none; }
+}

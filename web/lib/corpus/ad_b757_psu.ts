@@ -31,6 +31,10 @@ export const REV_2026_21864 = buildRevision(
       "https://www.federalregister.gov/documents/full_text/xml/2026/10/27/2026-21864.xml",
     is_current: true,
     superseded_by: null,
+    // Real: Federal Register index for document 2026-21864.
+    fr_citation: "91 FR 67442",
+    start_page: 67442,
+    end_page: 67445,
   },
   [
     {

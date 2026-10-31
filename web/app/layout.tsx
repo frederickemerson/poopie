@@ -32,7 +32,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AUTSG - AD answer engine",
+  title: "poopie \u2014 airworthiness directive answer engine",
   description:
     "Traceable answers to FAA airworthiness directive applicability questions: every sentence cited, every decision made by a rules engine.",
 };

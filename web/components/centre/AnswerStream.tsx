@@ -8,6 +8,7 @@ import { useMotionPrefs } from "@/lib/motion";
 import type { AnswerDeltaPayload } from "@/lib/events";
 import type { DroppedSentence, VerifiedSentence } from "@/lib/useEngineStream";
 import { CitationPill } from "./CitationPill";
+import { CitationReferences } from "./CitationReferences";
 
 interface AnswerStreamProps {
   readonly answer: readonly VerifiedSentence[];
@@ -38,6 +39,15 @@ export function AnswerStream({
       for (const c of s.citations) if (!map.has(c.id)) map.set(c.id, map.size + 1);
     }
     return map;
+  }, [answer]);
+
+  /** Each distinct citation once, in the order its number was assigned. */
+  const cited = useMemo(() => {
+    const seen = new Map<string, (typeof answer)[number]["citations"][number]>();
+    for (const s of answer) {
+      for (const c of s.citations) if (!seen.has(c.id)) seen.set(c.id, c);
+    }
+    return [...seen.values()];
   }, [answer]);
 
   return (
@@ -95,6 +105,13 @@ export function AnswerStream({
           </span>
         </motion.p>
       ))}
+
+      <CitationReferences
+        numbering={numbering}
+        citations={cited}
+        activeCitationId={activeCitationId}
+        onFocusCitation={onFocusCitation}
+      />
 
       {dropped.length > 0 ? (
         <motion.div

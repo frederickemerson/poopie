@@ -1,388 +1,308 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { BlastRadius } from "@/components/blast/BlastRadius";
-import { BackendStatus } from "@/components/BackendStatus";
-import { AnswerEnvelopePanel } from "@/components/centre/AnswerEnvelopePanel";
-import { AnswerStream } from "@/components/centre/AnswerStream";
-import { RefusalCard } from "@/components/centre/RefusalCard";
-import { SupersededBanner } from "@/components/centre/SupersededBanner";
-import { DevToolbar } from "@/components/DevToolbar";
-import { EntityChips } from "@/components/left/EntityChips";
-import { PlanPanel } from "@/components/left/PlanPanel";
-import { QueryBar } from "@/components/left/QueryBar";
-import { LatencyBadges } from "@/components/LatencyBadges";
-import { EvidenceTabs, type EvidenceTabId } from "@/components/right/EvidenceTabs";
-import { Panel } from "@/components/ui/Panel";
-import { Tabs } from "@/components/ui/Tabs";
-import type { BlastRevisionRef } from "@/lib/blast";
-import { resolveCitation, type ResolvedCitation } from "@/lib/citation";
-import { CONTRACT_VERSION } from "@/lib/contract";
-import { findAd, revisionForAdNumber } from "@/lib/corpus";
-import {
-  DEFAULT_ENGINE_SOURCE,
-  readStoredEngineSource,
-  storeEngineSource,
-  type EngineSource,
-} from "@/lib/engineSource";
-import { isProofTreeUnavailable } from "@/lib/events";
-import { liveDemo, tailNumberIn } from "@/lib/liveDemos";
-import { DEFAULT_SCENARIO_ID, scenario, type ScenarioId } from "@/lib/mockStream";
-import { useBackendHealth } from "@/lib/useBackendHealth";
-import { useEngineStream } from "@/lib/useEngineStream";
+import { motion } from "framer-motion";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { PipelineDiagram } from "@/components/landing/PipelineDiagram";
+import { Reveal } from "@/components/landing/Reveal";
+import { VerdictSpecimen } from "@/components/landing/VerdictSpecimen";
+import { useMotionPrefs } from "@/lib/motion";
+import type { CorpusSummary } from "@/lib/useBackendHealth";
 
-type Workspace = "workspace" | "blast";
+/** What the engine is for, in the order an engineer meets it. */
+const STEPS: readonly { readonly title: string; readonly body: string }[] = [
+  {
+    title: "Ask in plain English",
+    body: "“Which ADs apply to N117UW, an A320-214 with MSN 1224?” No query language, no docket numbers to look up first.",
+  },
+  {
+    title: "The question is read, not guessed at",
+    body: "A tail number, a model, a serial, a docket — each is pulled out by a table lookup and a structured query plan, so what the engine thinks you asked is on screen before it answers.",
+  },
+  {
+    title: "Retrieval is filtered by the graph",
+    body: "Keyword and dense search over 28,735 paragraphs, fused, then narrowed to the directives whose own rules name your aircraft. Nothing else is read.",
+  },
+  {
+    title: "A rules engine decides, not the model",
+    body: "Applicability is evaluated against the directive's own conditions — model, serial range, fitted equipment — and the pass or fail of every condition is shown as a proof tree.",
+  },
+  {
+    title: "Every sentence is held to a citation",
+    body: "A verifier re-checks each sentence against the paragraph it cites and drops the ones that do not hold. What survives is what you read.",
+  },
+  {
+    title: "It refuses when it should",
+    body: "If applicability is delegated to a document this engine does not hold, or your question names no aircraft, it says so and names who can resolve it — rather than writing a confident paragraph.",
+  },
+];
 
-/** The question for a demo slot, under whichever engine is selected. */
-function demoQuestion(source: EngineSource, id: ScenarioId): { query: string; tail: string | null } {
-  if (source === "engine") {
-    const demo = liveDemo(id);
-    return { query: demo.query, tail: demo.tail_number };
-  }
-  return { query: scenario(id).query, tail: null };
+const REFUSALS: readonly { readonly code: string; readonly meaning: string }[] = [
+  { code: "EXTERNAL_SOURCE_REQUIRED", meaning: "a document we do not hold decides this" },
+  { code: "NEED_CONFIG", meaning: "you can clear this in seconds — here is what is missing" },
+  { code: "NO_EVIDENCE", meaning: "this corpus does not hold it" },
+  { code: "OUT_OF_SCOPE", meaning: "this was never an AD question" },
+  { code: "CANNOT_DETERMINE", meaning: "the clause did not parse; we will not guess it" },
+  { code: "SUPERSEDED", meaning: "answered, but a newer revision exists" },
+];
+
+function useCorpus(): CorpusSummary | null {
+  const [corpus, setCorpus] = useState<CorpusSummary | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/health", { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setCorpus(d?.corpus ?? null))
+      .catch(() => {
+        /* The page states no figure rather than a stale one. */
+      });
+    return () => controller.abort();
+  }, []);
+  return corpus;
 }
 
-export default function Page() {
-  const { state, run } = useEngineStream();
-  const health = useBackendHealth();
-  const [source, setSource] = useState<EngineSource>(DEFAULT_ENGINE_SOURCE);
-  const [scenarioId, setScenarioId] = useState<ScenarioId>(DEFAULT_SCENARIO_ID);
-  const [query, setQuery] = useState<string>(demoQuestion(DEFAULT_ENGINE_SOURCE, DEFAULT_SCENARIO_ID).query);
-  const [typeIn, setTypeIn] = useState<{ text: string; nonce: number } | null>(null);
-  const [workspace, setWorkspace] = useState<Workspace>("workspace");
-  const [evidenceTab, setEvidenceTab] = useState<EvidenceTabId>("proof");
-  const [citation, setCitation] = useState<ResolvedCitation | null>(null);
-  const [focusRevisionId, setFocusRevisionId] = useState<string | null>(null);
-  // Revisions the engine itself surfaced, newest first. The blast grid may only
-  // be asked about one of these, so it can never show a revision no run read.
-  const [revisions, setRevisions] = useState<readonly BlastRevisionRef[]>([]);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setSource(readStoredEngineSource());
-    setHydrated(true);
-  }, []);
-
-  const start = useCallback(
-    (nextSource: EngineSource, id: ScenarioId) => {
-      const { query: text } = demoQuestion(nextSource, id);
-      setScenarioId(id);
-      setCitation(null);
-      setFocusRevisionId(null);
-      setEvidenceTab("proof");
-      setWorkspace("workspace");
-      setTypeIn({ text, nonce: Date.now() });
-    },
-    [],
+function Stat({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="flex flex-col gap-1 border-t border-line-strong pt-3">
+      <span className="t-figure tabular-nums text-ink">{value}</span>
+      <span className="t-label">{label}</span>
+    </div>
   );
+}
 
-  const replay = useCallback((id: ScenarioId) => start(source, id), [source, start]);
-
-  const changeSource = useCallback(
-    (next: EngineSource) => {
-      setSource(next);
-      storeEngineSource(next);
-      setRevisions([]);
-      start(next, scenarioId);
-    },
-    [scenarioId, start],
-  );
-
-  // The opening run. Everything the UI shows afterwards came off the stream.
-  useEffect(() => {
-    if (!hydrated) return;
-    start(source, DEFAULT_SCENARIO_ID);
-    // Only on first hydration: later runs are driven by the toolbar and the bar.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated]);
-
-  const submit = useCallback(() => {
-    const demo = demoQuestion(source, scenarioId);
-    const edited = query.trim() !== demo.query.trim();
-    if (source === "mock") {
-      run(edited ? { query, source } : { query, source, scenario: scenarioId });
-    } else {
-      run({ query, source, tailNumber: edited ? tailNumberIn(query) : demo.tail });
-    }
-    setCitation(null);
-  }, [query, run, scenarioId, source]);
-
-  // Collect every revision the engine named, so blast radius has somewhere real
-  // to point. The decided one goes first: it is the one with a proof behind it.
-  useEffect(() => {
-    const tree = state.decision?.proof_tree ?? null;
-    const decided = tree && !isProofTreeUnavailable(tree) ? (tree.revision_id ?? null) : null;
-    const seen = new Map<string, BlastRevisionRef>();
-    for (const paragraph of state.paragraphs) {
-      if (seen.has(paragraph.revision_id)) continue;
-      seen.set(paragraph.revision_id, {
-        revision_id: paragraph.revision_id,
-        ad_number: paragraph.ad_number ?? null,
-        decided: paragraph.revision_id === decided,
-      });
-    }
-    if (seen.size === 0) return;
-    setRevisions((prev) => {
-      const merged = new Map(prev.map((r) => [r.revision_id, r]));
-      for (const [id, ref] of seen) {
-        const existing = merged.get(id);
-        merged.set(id, {
-          revision_id: id,
-          ad_number: ref.ad_number ?? existing?.ad_number ?? null,
-          decided: ref.decided || existing?.decided === true,
-        });
-      }
-      return [...merged.values()].sort((a, b) => Number(b.decided) - Number(a.decided));
-    });
-  }, [state.decision, state.paragraphs]);
-
-  const ad = useMemo(() => findAd(state.plan?.ad_number ?? null), [state.plan]);
-  const askedRevision = useMemo(
-    () => (ad ? revisionForAdNumber(ad, state.plan?.ad_number ?? null) : null),
-    [ad, state.plan],
-  );
-  const resolve = useCallback(
-    (id: string) => resolveCitation(id, state.paragraphs),
-    [state.paragraphs],
-  );
-
-  const superseded =
-    state.refusal?.code === "SUPERSEDED" &&
-    typeof state.refusal.detail !== "string" &&
-    "superseded_warning" in state.refusal.detail
-      ? state.refusal.detail.superseded_warning
-      : null;
-  const blockingRefusal = state.refusal && !superseded ? state.refusal : null;
-
-  const tree = state.decision?.proof_tree ?? null;
-  const externalDocuments =
-    tree && !isProofTreeUnavailable(tree) ? (tree.external_documents ?? []) : [];
-
-  const subjectLabel =
-    state.plan?.aircraft.tail_number ?? state.plan?.aircraft.model ?? null;
-
-  const openCurrentRevision = useCallback((revisionId: string) => {
-    setFocusRevisionId(revisionId);
-    setEvidenceTab("revisions");
-  }, []);
-
-  /**
-   * NEED_CONFIG is the code the user can clear. Supplying the value re-asks the
-   * question with the value stated in it, so the engine reads it and decides
-   * again. The UI never folds a supplied value into a decision itself.
-   *
-   * The assertion is phrased from the rule the engine could not evaluate - its
-   * own operator and its own value, taken from the proof tree - rather than from
-   * the bare field name, which would send back "given it has equipment".
-   */
-  const supplyValue = useCallback(
-    (field: string, value?: string) => {
-      if (source === "mock") {
-        replay("clean");
-        return;
-      }
-      const condition =
-        tree && !isProofTreeUnavailable(tree)
-          ? (tree.children ?? []).find((c) => c.field === field)
-          : undefined;
-      const subject = tree && !isProofTreeUnavailable(tree) ? tree.aircraft?.tail_number : null;
-      const named = value?.trim() || condition?.rule_value || field;
-      const assertion =
-        condition?.operator === "exists" || condition?.operator === "not_exists"
-          ? `${subject ?? "It"} is fitted with ${named}.`
-          : `Its ${field.replace(/_/g, " ")} is ${named}.`;
-      const restated = `${query.trim().replace(/\s+$/, "")} ${assertion}`;
-      setQuery(restated);
-      setTypeIn({ text: restated, nonce: Date.now() });
-    },
-    [query, replay, source, tree],
-  );
-
-  const envelope = state.done?.envelope ?? null;
+export default function Landing() {
+  const { reduced } = useMotionPrefs();
+  const corpus = useCorpus();
+  const n = (v: number | undefined) => (v === undefined ? "—" : v.toLocaleString());
 
   return (
-    <main className="flex h-dvh flex-col overflow-hidden bg-bg">
-      <header className="shrink-0 border-b border-line bg-raised">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2">
-          <div className="flex items-baseline gap-2.5">
-            <span className="t-mono !text-[15px] font-bold tracking-[-0.02em] text-ink">AUTSG</span>
-            <span className="t-label">airworthiness directive answer engine</span>
-            <span className="t-mono text-ink-3">contract {CONTRACT_VERSION}</span>
-          </div>
-          <div className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-2">
-            {source === "engine" ? <BackendStatus {...health} /> : null}
-            <LatencyBadges stageMs={state.stageMs} totalMs={state.done?.total_ms ?? null} />
-            <DevToolbar
-              active={scenarioId}
-              onReplay={replay}
-              streaming={state.status === "streaming"}
-              source={source}
-              onSourceChange={changeSource}
-            />
-          </div>
-        </div>
-        <div className="flex items-end justify-between gap-4 border-t border-line px-3">
-          <Tabs
-            tabs={[
-              { id: "workspace", label: "workspace" },
-              {
-                id: "blast",
-                label: "blast radius",
-                badge: source === "engine" ? "live fleet" : "86 aircraft",
-              },
-            ]}
-            active={workspace}
-            onChange={setWorkspace}
-            ariaLabel="view"
-          />
-          <p className="t-mono py-1.5 text-ink-3">
-            {source === "engine" ? liveDemo(scenarioId).watch_for : scenario(scenarioId).watch_for}
-          </p>
-        </div>
-      </header>
+    <>
+      <a
+        href="#main"
+        className="t-label sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:border focus:border-accent focus:bg-raised focus:px-3 focus:py-2 focus:text-ink"
+      >
+        Skip to content
+      </a>
 
-      {workspace === "blast" ? (
-        <BlastRadius
-          source={source}
-          revisions={revisions}
-          preferredAdNumber={ad?.ad_number ?? null}
-        />
-      ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-[320px_minmax(0,1fr)_430px] gap-2 p-2">
-          {/* LEFT - the question and what the engine read in it */}
-          <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">
-            <Panel label="query" meta={state.status === "streaming" ? "streaming" : state.status}>
-              <QueryBar
-                value={query}
-                onChange={setQuery}
-                onSubmit={submit}
-                streaming={state.status === "streaming"}
-                typeIn={typeIn}
-              />
-            </Panel>
-            <Panel label="entities" meta={`${state.entities.length} parsed`} bodyClassName="p-3">
-              {state.entities.length === 0 ? (
-                <p className="t-mono text-ink-3">awaiting entity pass&hellip;</p>
-              ) : (
-                <EntityChips entities={state.entities} query={state.query} />
-              )}
-            </Panel>
-            <Panel label="query plan" meta={state.plan ? state.plan.intent : "—"}>
-              <PlanPanel
-                plan={state.plan}
-                planModel={state.planModel}
-                unknownFields={state.decision?.unknown_fields ?? []}
-              />
-            </Panel>
-          </div>
-
-          {/* CENTRE - the answer, and nothing that has not been verified */}
-          <Panel
-            label="answer"
-            tier="verdict"
-            meta={
-              state.verification
-                ? `verified ${state.verification.kept.length} · dropped ${state.verification.dropped.length} · ${state.verification.stage_ms} ms`
-                : state.deltas.length > 0
-                  ? `${state.deltas.length} held for verification`
-                  : "—"
-            }
-            bodyClassName="overflow-y-auto"
+      <div className="min-h-dvh bg-bg">
+        <header className="sticky top-0 z-30 border-b border-line bg-raised/85 backdrop-blur-md">
+          <nav
+            aria-label="Main"
+            className="mx-auto flex max-w-[1180px] items-center gap-4 px-5 py-3 lg:px-8"
           >
-            {superseded ? (
-              <SupersededBanner detail={superseded} onOpenCurrent={openCurrentRevision} />
-            ) : null}
-
-            {blockingRefusal ? (
-              <RefusalCard
-                refusal={blockingRefusal}
-                paragraphs={state.paragraphs}
-                externalDocuments={externalDocuments}
-                onSupplyValue={supplyValue}
-              />
-            ) : null}
-
-            {state.decisionUnavailable && !blockingRefusal ? (
-              <section
-                aria-label="no applicability decision"
-                className="m-4 border border-line-strong bg-sunken/60 px-3 py-2.5"
+            <span className="t-mono !text-[15px] font-bold tracking-[-0.02em] text-ink">
+              poopie
+            </span>
+            <span className="t-label hidden sm:inline">
+              airworthiness directive answer engine
+            </span>
+            <Link
+              href="/ask"
+              className="group ml-auto flex items-center gap-2 border border-line-strong bg-sunken px-3.5 py-1.5 transition-colors duration-300 hover:border-accent focus-visible:border-accent"
+            >
+              <span className="t-label text-ink">ask a question</span>
+              <span
+                aria-hidden
+                className="inline-block text-ink-2 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:text-accent"
               >
-                <p className="t-label mb-1">no applicability decision</p>
-                <p className="t-body text-ink">{state.decisionUnavailable}</p>
-                <p className="t-body mt-2 text-ink-2">
-                  Applicability is decided against one aircraft. Name a tail number or a serial
-                  number and the rules engine can run; a model alone matches hundreds of records and
-                  the engine will not pick one for you.
+                &rarr;
+              </span>
+            </Link>
+          </nav>
+        </header>
+
+        <main id="main">
+          {/* Hero */}
+          <section className="mx-auto max-w-[1180px] px-5 pb-16 pt-16 lg:px-8 lg:pb-24 lg:pt-28">
+            <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+            <div>
+            <Reveal className="flex flex-col gap-5">
+              <span className="t-label w-max border border-line-strong px-2.5 py-1 text-accent">
+                traceable by construction
+              </span>
+              <h1 className="t-display max-w-[20ch] text-ink">
+                Which directives apply, what must you do, and by when.
+              </h1>
+              <p className="t-answer max-w-[62ch] text-ink-2">
+                Ask in plain English. A knowledge graph and ordinary code find the answer,
+                a rules engine decides it, and the proof is on screen beside it —
+                paragraph, condition, revision.
+              </p>
+            </Reveal>
+
+            <Reveal delay={0.12} className="mt-8 flex flex-wrap items-center gap-3">
+              <Link
+                href="/ask"
+                className="group flex items-center gap-3 border border-ink bg-ink px-5 py-2.5 text-bg transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.98]"
+              >
+                <span className="t-label !text-[12px] text-bg">ask a question</span>
+                <span
+                  aria-hidden
+                  className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-1"
+                >
+                  &rarr;
+                </span>
+              </Link>
+              <a
+                href="#how"
+                className="t-label border border-line-strong px-5 py-2.5 text-ink transition-colors duration-300 hover:border-accent focus-visible:border-accent"
+              >
+                how it works
+              </a>
+            </Reveal>
+
+            </div>
+            <Reveal delay={0.18} className="w-full lg:pt-12">
+              <VerdictSpecimen />
+            </Reveal>
+            </div>
+
+            <Reveal delay={0.24} className="mt-16">
+              <PipelineDiagram />
+            </Reveal>
+          </section>
+
+          {/* What it reads */}
+          <section
+            aria-labelledby="corpus-heading"
+            className="border-y border-line bg-raised"
+          >
+            <div className="mx-auto max-w-[1180px] px-5 py-14 lg:px-8 lg:py-20">
+              <Reveal>
+                <h2 id="corpus-heading" className="t-heading max-w-[24ch] text-ink">
+                  It reads the directives themselves, not summaries of them.
+                </h2>
+              </Reveal>
+              <Reveal delay={0.1}>
+                <dl className="mt-10 grid grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-4">
+                  <Stat value={n(corpus?.ad_numbers)} label="airworthiness directives" />
+                  <Stat
+                    value={n(corpus?.federal_register_pages)}
+                    label="Federal Register pages"
+                  />
+                  <Stat value={n(corpus?.paragraphs)} label="indexed paragraphs" />
+                  <Stat value={n(corpus?.proposals)} label="proposals (NPRMs)" />
+                </dl>
+              </Reveal>
+              <Reveal delay={0.16}>
+                <p className="t-caption mt-6 max-w-[64ch] text-ink-3">
+                  Counted from the engine that loaded them, live, rather than quoted from a
+                  document that can go stale. A dash means this page could not reach the
+                  engine — it will not print a number it cannot stand behind.
                 </p>
-              </section>
-            ) : null}
+              </Reveal>
+            </div>
+          </section>
 
-            {state.deltas.length === 0 && !state.refusal && !state.decisionUnavailable ? (
-              <p className="t-mono px-4 py-3 text-ink-3">
-                {state.status === "streaming" ? "retrieving and deciding…" : "ask a question."}
+          {/* How it works */}
+          <section aria-labelledby="how-heading" id="how">
+            <div className="mx-auto max-w-[1180px] px-5 py-14 lg:px-8 lg:py-24">
+              <Reveal>
+                <h2 id="how-heading" className="t-heading max-w-[22ch] text-ink">
+                  Six steps, and a model writes only two of them.
+                </h2>
+              </Reveal>
+              <ol className="mt-10 grid gap-x-10 gap-y-9 md:grid-cols-2">
+                {STEPS.map((step, i) => (
+                  <Reveal as="li" key={step.title} delay={0.06 * i} className="flex gap-4">
+                    <span
+                      aria-hidden
+                      className="t-mono shrink-0 pt-0.5 text-accent"
+                      style={{ letterSpacing: "0.08em" }}
+                    >
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <div className="flex flex-col gap-1.5">
+                      <h3 className="t-subhead text-ink">{step.title}</h3>
+                      <p className="t-body max-w-[46ch] text-ink-2">{step.body}</p>
+                    </div>
+                  </Reveal>
+                ))}
+              </ol>
+            </div>
+          </section>
+
+          {/* Refusals */}
+          <section
+            aria-labelledby="refusal-heading"
+            className="border-y border-line bg-raised"
+          >
+            <div className="mx-auto max-w-[1180px] px-5 py-14 lg:px-8 lg:py-20">
+              <Reveal className="flex flex-col gap-4">
+                <span className="t-label w-max border border-line-strong px-2.5 py-1 text-accent">
+                  the part most engines skip
+                </span>
+                <h2 id="refusal-heading" className="t-heading max-w-[26ch] text-ink">
+                  A refusal names who can resolve it.
+                </h2>
+                <p className="t-body max-w-[62ch] text-ink-2">
+                  &ldquo;I don&rsquo;t know&rdquo; is not one answer, it is six different
+                  ones, and they send you to six different places. The engine emits the
+                  code that is true, and blocks the answer rather than writing around the
+                  gap.
+                </p>
+              </Reveal>
+              <ul className="mt-9 grid gap-px border border-line-strong bg-line-strong sm:grid-cols-2">
+                {REFUSALS.map((r, i) => (
+                  <Reveal
+                    as="li"
+                    key={r.code}
+                    delay={0.05 * i}
+                    className="flex flex-col gap-1 bg-raised px-4 py-3.5"
+                  >
+                    <code className="t-mono text-accent">{r.code}</code>
+                    <span className="t-body text-ink-2">{r.meaning}</span>
+                  </Reveal>
+                ))}
+              </ul>
+            </div>
+          </section>
+
+          {/* CTA */}
+          <section className="mx-auto max-w-[1180px] px-5 py-20 lg:px-8 lg:py-28">
+            <Reveal className="flex flex-col items-start gap-6">
+              <h2 className="t-heading max-w-[18ch] text-ink">
+                Ask it something you already know the answer to.
+              </h2>
+              <p className="t-body max-w-[54ch] text-ink-2">
+                That is the only honest way to judge it. Then ask it something it cannot
+                answer, and watch it say so.
               </p>
-            ) : null}
+              <motion.div
+                whileHover={reduced ? undefined : { scale: 1.015 }}
+                whileTap={reduced ? undefined : { scale: 0.985 }}
+                transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
+              >
+                <Link
+                  href="/ask"
+                  className="group flex items-center gap-3 border border-ink bg-ink px-6 py-3 text-bg"
+                >
+                  <span className="t-label !text-[12px] text-bg">open the engine</span>
+                  <span
+                    aria-hidden
+                    className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-1"
+                  >
+                    &rarr;
+                  </span>
+                </Link>
+              </motion.div>
+            </Reveal>
+          </section>
+        </main>
 
-            {state.withheldCount > 0 && state.answerWithheldBy ? (
-              <p className="t-body mx-4 mt-2 border border-dashed border-line-strong px-3 py-2 text-ink-2">
-                {state.withheldCount} sentence{state.withheldCount === 1 ? "" : "s"} passed citation
-                verification but {state.answerWithheldBy} withholds the answer, so none is shown.
-                The evidence they cited is in the panel on the right.
-              </p>
-            ) : null}
-
-            <AnswerStream
-              answer={state.answer}
-              dropped={state.dropped}
-              awaiting={state.awaitingVerification}
-              activeCitationId={citation?.id ?? null}
-              onFocusCitation={setCitation}
-            />
-
-            {envelope ? (
-              <AnswerEnvelopePanel
-                envelope={envelope}
-                onSupplyValue={source === "engine" ? (field) => supplyValue(field) : undefined}
-              />
-            ) : null}
-
-            {state.failure ? (
-              <p className="t-mono mx-4 mb-4 border border-line-strong px-3 py-2 text-ink-2">
-                stream error: {state.failure}
-              </p>
-            ) : null}
-
-            {/*
-              The citation claim is only true of sentences that are on screen, so
-              it is not made when none are. Saying "every sentence above carries a
-              citation" above an empty answer would be the exact kind of vacuous
-              reassurance this product exists to avoid.
-            */}
-            <footer className="mt-2 border-t border-line px-4 py-2">
-              <p className="t-mono text-ink-3">
-                {state.answer.length > 0
-                  ? "Every sentence above carries at least one citation that resolves to a paragraph in this run\u2019s retrieved set. "
-                  : "No answer prose is shown for this run. "}
-                Applicability was decided by the rules engine, not by the language model.
-              </p>
-            </footer>
-          </Panel>
-
-          {/* RIGHT - the evidence */}
-          <EvidenceTabs
-            state={state}
-            ad={ad}
-            askedRevisionId={askedRevision?.built.revision.revision_id ?? null}
-            focusRevisionId={focusRevisionId}
-            activeTab={evidenceTab}
-            onTabChange={setEvidenceTab}
-            citation={citation}
-            onFocusCitation={setCitation}
-            resolve={resolve}
-            subjectLabel={subjectLabel}
-          />
-        </div>
-      )}
-    </main>
+        <footer className="border-t border-line bg-raised">
+          <div className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-x-5 gap-y-2 px-5 py-5 lg:px-8">
+            <span className="t-mono text-ink-3">poopie</span>
+            <span className="t-caption text-ink-3">
+              Answers are generated from FAA source text and are not a substitute for the
+              directive itself.
+            </span>
+            <Link href="/ask" className="t-label ml-auto text-ink-2 hover:text-accent">
+              ask a question &rarr;
+            </Link>
+          </div>
+        </footer>
+      </div>
+    </>
   );
 }

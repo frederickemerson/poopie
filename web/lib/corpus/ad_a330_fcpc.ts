@@ -50,6 +50,10 @@ export const REV_2026_21861 = buildRevision(
       "https://www.federalregister.gov/documents/full_text/xml/2026/10/27/2026-21861.xml",
     is_current: true,
     superseded_by: null,
+    // Real: Federal Register index for document 2026-21861.
+    fr_citation: "91 FR 67455",
+    start_page: 67455,
+    end_page: 67457,
   },
   [
     {

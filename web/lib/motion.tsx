@@ -24,8 +24,8 @@ interface Prefs {
 
 const MotionPrefs = createContext<Prefs | null>(null);
 
-const STORE_MOTION = "autsg.reduced-motion";
-const STORE_THEME = "autsg.theme";
+const STORE_MOTION = "poopie.reduced-motion";
+const STORE_THEME = "poopie.theme";
 
 /** Hard ceiling from the brief: no transition may exceed 400 ms. */
 export const MAX_MOTION_MS = 400;
