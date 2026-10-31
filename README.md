@@ -39,10 +39,25 @@ Sonnet answer writer after the decision is already made.
 
 | Stage | p50 | p95 | Target |
 |---|---|---|---|
-| Entity pass | 0.04 ms | 0.13 ms | 5 ms |
-| Retrieval (graph filter + BM25 + dense, RRF) | 11.96 ms | 47.64 ms | 100 ms |
+| Entity pass | 0.07 ms | 0.13 ms | 5 ms |
+| Retrieval (graph filter + BM25 + dense, RRF) | 28.42 ms | 39.25 ms | 100 ms |
 
-Measured warm over 40 queries against the built index.
+Measured warm over 585 samples against the built index of **25,687 paragraphs
+across 2,117 ADs**. Reproduce with:
+
+```bash
+python3 -m engine.retrieval.latency_bench
+```
+
+The queries are generated from the corpus, not hand-picked — a third name a
+real AD, a third are real paragraph headings, a third name a fleet aircraft
+model — so the mix cannot be chosen to flatter the result. Only the model-free
+stages are claimed here; query planning and answer writing are network calls.
+
+These replace figures measured when the corpus was 353 paragraphs. Growing it
+73x moved p50 from 11.96 ms to 28.42 ms and left p95 better than before
+(47.64 ms to 39.25 ms), because the graph filter narrows on the AD before
+either arm runs, so a query that names an AD does not scan 25,687 paragraphs.
 
 API spend to date: **$0.4417** across 406 recorded calls. Bulk extraction runs
 on Haiku 5.5 through the Batch API at half price and accounts for $0.0261 of

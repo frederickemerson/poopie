@@ -275,24 +275,38 @@ Rules for how refusals are built (`refusals.py`):
 
 ## Latency
 
-Measured warm over 40 queries by the caller (corpus not recorded in my brief):
+Re-measured on the full corpus (25,687 paragraphs across 2,117 ADs), 585 warm
+samples over 39 corpus-generated queries, via
+`python3 -m engine.retrieval.latency_bench`:
 
 | Stage | p50 | p95 | Target |
 |---|---|---|---|
-| Entity pass | 0.04 ms | 0.13 ms | 5 ms |
-| Retrieval (filter + both arms + fusion) | 11.96 ms | 47.64 ms | 100 ms |
+| Entity pass | 0.07 ms | 0.13 ms | 5 ms |
+| Retrieval (filter + both arms + fusion) | 28.42 ms | 39.25 ms | 100 ms |
+
+The earlier figures in this section (0.04/0.13 ms and 11.96/47.64 ms) were taken
+when the corpus was 353 paragraphs, and the corpus was indeed not recorded with
+them — which is why the bench now prints the paragraph and AD count beside every
+result. Growing the corpus 73x moved retrieval p50 from 11.96 ms to 28.42 ms and
+left p95 lower than before, because the graph filter narrows to a single
+revision before either arm runs.
 
 The **first query pays a one-off cost of about 10 s** loading the embedding model
 (`embedder()` caches it per process). Any first-request SLA has to account for that
 or warm the model at startup.
 
-My own spot-check, 5 queries repeated 8 times against the current build corpus (353
-paragraphs) with `HF_HUB_OFFLINE=1`, while an extraction and a harvest were
-running on the same machine: entity pass p50 0.05 ms, p95 0.07 ms; first query
-7.4 s; retrieval p50 15.7 ms but p95 527 ms. The p95 is far above the 47.64 ms figure
-and I attribute it to CPU contention from the concurrent jobs, but I did not rerun
-on a quiet machine, so that attribution is a guess. Prefer the 40-query measurement;
-treat mine as confirming the order of magnitude and the model-load cost only.
+An earlier spot-check on the 353-paragraph corpus, run while an extraction and a
+harvest were competing for the same CPU, reported retrieval p95 of 527 ms and
+attributed it to that contention without rerunning on a quiet machine. The
+attribution looks right: the same bench on a 73x larger corpus and a quiet
+machine gives p95 39.25 ms. Treat a p95 in the hundreds of milliseconds as a
+signal that something else is running, not as the engine's cost.
+
+Index load is 0.5 s and the server pays it once at startup, so no query pays it.
+The embedding model itself is loaded lazily and cached per process
+(`embedder()`); a process that has never embedded anything pays several seconds
+on its first dense query, which is why the backend builds the index at startup
+rather than on first request.
 
 ---
 

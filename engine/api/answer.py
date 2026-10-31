@@ -264,8 +264,16 @@ def write_answer(
     hits: list[Any],
     *,
     stage_note: str | None = None,
+    label: str = "answer",
 ) -> AnswerOutcome:
-    """Draft an answer over the retrieved paragraphs. Never raises."""
+    """Draft an answer over the retrieved paragraphs. Never raises.
+
+    ``label`` is the ledger label for this call. It exists so a caller that
+    runs the writer more than once per question -- the eval harness runs it
+    for both arms -- can have each arm billed separately and still be using
+    this one function, which is the only way the two arms are comparable: a
+    baseline with its own prompt would be measuring the prompt, not the engine.
+    """
     started = time.perf_counter()
 
     def elapsed() -> float:
@@ -285,7 +293,7 @@ def write_answer(
             model=MODEL_ANSWER,
             system=SYSTEM,
             user=user,
-            label="answer",
+            label=label,
             max_tokens=2048,
             schema=ANSWER_SCHEMA,
             estimated_usd=0.02,
