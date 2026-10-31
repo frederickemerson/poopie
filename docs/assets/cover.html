@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#fafafa;--raised:#f5f5f5;--ink:#202020;--ink2:#555;--ink3:#828282;
+        --line:rgba(32,32,32,.12);--line2:rgba(32,32,32,.21);--accent:#ff682c;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{width:1200px;height:630px;background:var(--bg);color:var(--ink);
+       font-family:'Inter Tight',system-ui,sans-serif;display:flex;align-items:center;
+       gap:64px;padding:0 76px;overflow:hidden}
+  .owl{flex:none}
+  .right{display:flex;flex-direction:column;gap:22px;min-width:0}
+  .name{font-size:76px;font-weight:600;letter-spacing:-.035em;line-height:1}
+  .name b{color:var(--accent);font-weight:600}
+  .expand{font-family:'IBM Plex Mono',monospace;font-size:14px;letter-spacing:.09em;
+          text-transform:uppercase;color:var(--ink3)}
+  .does{font-size:27px;line-height:1.35;color:var(--ink2);max-width:19ch;font-weight:400}
+  .does em{font-style:normal;color:var(--ink);font-weight:500}
+  .stats{display:flex;gap:0;border:1px solid var(--line2);width:max-content;margin-top:6px}
+  .stat{padding:13px 22px;border-right:1px solid var(--line2);display:flex;flex-direction:column;gap:3px}
+  .stat:last-child{border-right:0}
+  .v{font-size:25px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .k{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;
+     text-transform:uppercase;color:var(--ink3)}
+</style></head><body>
+
+<svg class="owl" viewBox="0 0 120 156" width="300" height="390">
+  <g fill="none" stroke="var(--line2)" stroke-width="1.6" stroke-linecap="square">
+    <path d="M16 141 H104"/><path d="M21 147 H99" opacity=".6"/><path d="M26 153 H94" opacity=".32"/>
+    <path d="M50 130 V138 M44 138 H56"/><path d="M70 130 V138 M64 138 H76"/>
+    <rect x="28" y="84" width="64" height="46" rx="16" fill="var(--raised)"/>
+    <path d="M37 96 Q31 112 39 125" opacity=".7"/><path d="M83 96 Q89 112 81 125" opacity=".7"/>
+    <g>
+      <path d="M26 35 L33 16 L45 32" fill="var(--raised)"/>
+      <path d="M94 35 L87 16 L75 32" fill="var(--raised)"/>
+      <rect x="20" y="30" width="80" height="58" rx="12" fill="var(--raised)"/>
+      <circle cx="44" cy="56" r="12" fill="var(--bg)"/><circle cx="76" cy="56" r="12" fill="var(--bg)"/>
+      <circle cx="44" cy="56" r="4.6" fill="var(--accent)" stroke="none"/>
+      <circle cx="76" cy="56" r="4.6" fill="var(--accent)" stroke="none"/>
+      <path d="M54 62 H66 L60 73 Z" fill="var(--raised)"/>
+    </g>
+  </g>
+</svg>
+
+<div class="right">
+  <div>
+    <div class="name"><b>p</b>oopie</div>
+    <div class="expand" style="margin-top:12px">plane operations &amp; original parts indexing engine</div>
+  </div>
+  <div class="does">Which airworthiness directives apply to <em>this aircraft</em> &mdash; and the paragraph that proves it.</div>
+  <div class="stats">
+    <div class="stat"><span class="v">2,117</span><span class="k">directives</span></div>
+    <div class="stat"><span class="v">28,735</span><span class="k">paragraphs</span></div>
+    <div class="stat"><span class="v">0.5 ms</span><span class="k">to decide</span></div>
+  </div>
+</div>
+</body></html>

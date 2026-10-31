@@ -1,5 +1,7 @@
 # Traceable Airworthiness Directive engine
 
+![poopie — plane operations & original parts indexing engine](docs/assets/cover.png)
+
 An airline airworthiness engineer or B1 technician asks in plain English:
 *"Which ADs apply to this aircraft, what must I do, by when, and which revision is
 current?"* Claude turns that into a structured query; a knowledge graph and plain
