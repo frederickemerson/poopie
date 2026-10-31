@@ -1,5 +1,5 @@
 {
-  "contract_version": "1.1.1",
+  "contract_version": "1.2.0",
   "description": "Single source of truth for the AD traceability engine. Every node type, edge type, enum value, event name and payload key used anywhere in engine/, web/ or eval/ MUST appear here. tests/test_contract.py fails the build on any key that does not.",
   "node_types": {
     "Docket": {
@@ -26,9 +26,20 @@
         "product_type",
         "summary",
         "comment_url",
-        "source"
+        "source",
+        "record_id",
+        "fr_document_number",
+        "federal_register_link",
+        "full_text_xml_url",
+        "supersedes_ad",
+        "mentions_serial_numbers",
+        "ad_number",
+        "plain_text",
+        "content_sha256",
+        "retrieved_at",
+        "source_bytes"
       ],
-      "note": "From the AD NPRM spreadsheet. Proposed rule: has comments_due_date, has NO effective_date or amendment."
+      "note": "A proposed rule. record_id is the challenge index's stable key (NPRM-001). Has comments_due_date, and NO effective_date or amendment. Its full text is fetched from federal_register_link and IS indexed, always staged PROPOSED."
     },
     "AD": {
       "key": "ad_number",
@@ -57,7 +68,10 @@
         "superseded_by",
         "content_sha256",
         "retrieved_at",
-        "source_bytes"
+        "source_bytes",
+        "fr_citation",
+        "start_page",
+        "end_page"
       ],
       "note": "One Federal Register document. revision_id == fr_document_number. amendment from docket_ids, e.g. '39-23502'. content_sha256/retrieved_at pin exactly which bytes an answer was derived from, so a citation is reproducible after the source changes."
     },
@@ -72,9 +86,12 @@
         "text",
         "char_start",
         "char_end",
-        "ordinal"
+        "ordinal",
+        "nprm_id",
+        "source_kind",
+        "document_stage"
       ],
-      "note": "paragraph_id format: '{revision_id}#{label}'. char offsets index into Revision.plain_text for exact citation spans."
+      "note": "paragraph_id format: '{document_id}#{label}', where document_id is revision_id for an adopted AD and nprm_id for a proposal. Exactly one of revision_id / nprm_id is set, and source_kind says which. char offsets index into that document's plain_text for exact citation spans. document_stage is denormalised onto every paragraph so no retrieval hit can reach a reader without its legal stage attached."
     },
     "Rule": {
       "key": "rule_id",
@@ -326,6 +343,10 @@
       "federal_register",
       "opensky",
       "derived"
+    ],
+    "source_kind": [
+      "REVISION",
+      "NPRM"
     ]
   },
   "refusal_semantics": {
@@ -380,7 +401,15 @@
     "rules": [
       "Every answer sentence carries >=1 citation_id.",
       "A citation_id MUST resolve to a Paragraph that was in the retrieved set for this query.",
-      "The cited char span MUST be a verbatim substring of that Paragraph.text."
+      "The cited char span MUST be a verbatim substring of that Paragraph.text.",
+      "Every rendered citation MUST show its document_stage. A citation to an NPRM paragraph MUST read as a proposal, never as a requirement."
+    ],
+    "human_reference_fields": [
+      "record_id for an NPRM, ad_number for an adopted AD",
+      "fr_citation, e.g. '91 FR 66019'",
+      "page_range, e.g. '66019-66022'",
+      "paragraph label and role, the section of the full document",
+      "document_stage, so a proposal is never read as an obligation"
     ]
   },
   "query_plan_schema": {
@@ -526,7 +555,7 @@
     "A Revision whose applicability delegates to a ForeignAD or ServiceBulletin with held=false MUST refuse EXTERNAL_SOURCE_REQUIRED rather than infer applicability.",
     "The rules engine, not the LLM, produces every value in enums.decision.",
     "No UI animation may render a result that has not passed verification.",
-    "An NPRM is a PROPOSAL and can never be cited as a current legal obligation. Only Revision paragraphs are citable; NPRM text must never enter the citable paragraph index.",
+    "An NPRM is a PROPOSAL. NPRM paragraphs MAY be indexed, retrieved and cited, and every citation to one MUST carry document_stage PROPOSED. No NPRM paragraph may ever support a statement that an obligation exists, or supply a compliance deadline: only a Revision paragraph can. A proposal answers 'what is being proposed', never 'what must I do by when'.",
     "Every answer that states a requirement MUST carry the document_stage of the revision it came from. An AD adopted but not yet effective does not yet impose an obligation, and saying so is part of being correct."
   ]
 }

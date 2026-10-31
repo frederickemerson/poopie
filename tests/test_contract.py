@@ -291,3 +291,80 @@ def test_missing_inputs_are_contract_rule_fields_not_prose():
         f"from the decision's unknown_fields, not from refusal prose"
     )
     assert envelope["missing_inputs"] == ["equipment", "modification"]
+
+
+# --------------------------------------------------------------- NPRM staging
+#
+# The challenge's own dataset is NPRMs and the organizers ask for their full
+# text, so proposals ARE indexed. These tests are the fence that keeps that
+# from turning a proposal into an obligation.
+
+
+def test_paragraph_can_name_an_nprm_parent_and_must_say_which():
+    fields = set(contract()["node_types"]["Paragraph"]["fields"])
+    assert {"nprm_id", "source_kind", "document_stage"} <= fields
+    assert set(enum("source_kind")) == {"REVISION", "NPRM"}
+
+
+def test_nprm_carries_the_challenge_record_id_and_a_full_text_link():
+    """record_id is the index's stable key and the rubric asks us to cite it."""
+    fields = set(contract()["node_types"]["NPRM"]["fields"])
+    for required in ("record_id", "federal_register_link", "plain_text"):
+        assert required in fields, f"NPRM must carry {required}"
+
+
+def test_revision_carries_the_federal_register_citation_and_pages():
+    """The rubric asks for 'the Federal Register citation and page range'."""
+    fields = set(contract()["node_types"]["Revision"]["fields"])
+    for required in ("fr_citation", "start_page", "end_page"):
+        assert required in fields, f"Revision must carry {required}"
+
+
+def test_the_nprm_invariant_permits_indexing_but_forbids_obligation():
+    """The amended invariant must allow citation AND forbid obligation.
+
+    Worth pinning explicitly: the easy way to satisfy the rubric is to delete
+    the invariant, and the easy way to keep the invariant is to ignore the
+    rubric. The contract has to do both at once.
+    """
+    invariants = " ".join(contract()["invariants"])
+    nprm = next(i for i in contract()["invariants"] if i.startswith("An NPRM is a PROPOSAL"))
+    lowered = nprm.lower()
+    assert "may be indexed" in lowered, "proposals must be indexable"
+    assert "proposed" in lowered, "a proposal's citations must carry its stage"
+    assert "obligation" in lowered, "the invariant must still forbid obligation"
+    assert "deadline" in lowered, "the invariant must still forbid a deadline"
+    assert "never" in invariants.lower()
+
+
+def test_no_source_file_treats_an_nprm_paragraph_as_an_obligation():
+    """A compliance basis must never be derived from a PROPOSED paragraph.
+
+    Catches the shape where code reads a compliance_time off whatever
+    paragraph it retrieved without checking the document stage first.
+    """
+    offenders = []
+    for path in _sources():
+        if path.resolve() == Path(__file__).resolve():
+            continue
+        body = path.read_text(encoding="utf-8", errors="replace")
+        if "nprm" not in body.lower():
+            continue
+        lines = body.splitlines()
+        for n, line in enumerate(lines, 1):
+            stripped = line.strip()
+            if stripped.startswith("#") or stripped.startswith("*"):
+                continue
+            # A compliance deadline pulled from something NPRM-shaped, with no
+            # stage check anywhere nearby, is the failure this guards.
+            if "compliance" in line.lower() and "nprm" in line.lower():
+                window = "\n".join(lines[max(0, n - 12) : n + 12])
+                if "PROPOSED" not in window and "document_stage" not in window:
+                    offenders.append(
+                        f"{path.relative_to(ROOT)}:{n} reads a compliance value "
+                        f"from NPRM data with no document_stage check nearby"
+                    )
+    assert not offenders, (
+        "an NPRM is a proposal and cannot supply a deadline:\n  "
+        + "\n  ".join(offenders)
+    )
