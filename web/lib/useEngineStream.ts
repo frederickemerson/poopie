@@ -24,6 +24,7 @@ import type {
   DonePayload,
   EngineEvent,
   Entity,
+  ListingPayload,
   ParagraphNode,
   QueryPlan,
   RefusalPayload,
@@ -45,6 +46,13 @@ export interface EngineState {
   readonly decision: DecisionPayload | null;
   readonly deltas: readonly AnswerDeltaPayload[];
   readonly verification: VerificationPayload | null;
+  /**
+   * The corpus listing, when the run produced one. It is not held to rule 1:
+   * a listing is not drafted prose but rows computed in code from the graph
+   * index, so there is nothing for the verifier to have cleared, and gating it
+   * on an event the engine never sends for this answer kind would hide it.
+   */
+  readonly listing: ListingPayload | null;
   readonly refusal: RefusalPayload | null;
   readonly done: DonePayload | null;
   readonly failure: string | null;
@@ -65,6 +73,7 @@ const EMPTY: EngineState = {
   decision: null,
   deltas: [],
   verification: null,
+  listing: null,
   refusal: null,
   done: null,
   failure: null,
@@ -108,6 +117,8 @@ function reducer(state: EngineState, action: Action): EngineState {
           return { ...next, deltas: [...next.deltas, event.data] };
         case "verification":
           return { ...next, verification: event.data };
+        case "listing":
+          return { ...next, listing: event.data };
         case "refusal":
           return { ...next, refusal: event.data };
         case "done":

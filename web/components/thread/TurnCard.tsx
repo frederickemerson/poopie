@@ -91,6 +91,27 @@ export function TurnCard({ turn, index }: TurnCardProps) {
         </div>
       ) : null}
 
+      {/* An archived listing is summarised, not redrawn. The thread keeps the
+          bounds the rows were read under - a top-N of this corpus, ending at
+          its own last publication date - because that is the part a reader
+          scrolling back could otherwise mistake for a live feed. */}
+      {turn.listing ? (
+        <div className="border-l-2 border-line-strong pl-3">
+          <p className="t-body text-ink">
+            A listing of the {turn.listing.rows.length} most recently published{" "}
+            {turn.listing.rows.length === 1 ? "directive" : "directives"} in this corpus, which
+            runs to {turn.listing.corpus_latest} and holds{" "}
+            <span className="t-figure">{turn.listing.total_available.toLocaleString()}</span> in
+            all.
+          </p>
+          {turn.listing.rows.length > 0 ? (
+            <p className="t-mono mt-1 break-words text-ink-3">
+              {turn.listing.rows.map((row) => row.ad_number).join(" · ")}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {!answered && !refused && turn.decisionUnavailable ? (
         <p className="t-body border-l-2 border-line-strong pl-3 text-ink">
           {turn.decisionUnavailable}
@@ -103,7 +124,7 @@ export function TurnCard({ turn, index }: TurnCardProps) {
         </p>
       ) : null}
 
-      {!answered && !refused && !turn.decisionUnavailable && !turn.failure ? (
+      {!answered && !refused && !turn.listing && !turn.decisionUnavailable && !turn.failure ? (
         <p className="t-mono text-ink-3">no answer prose was shown for this turn.</p>
       ) : null}
     </article>

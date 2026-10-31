@@ -405,6 +405,52 @@ export interface VerificationPayload {
    */
   readonly counted?: { readonly kept: number; readonly dropped: number } | null;
 }
+/**
+ * One row of the `listing` event: a published revision as the corpus holds it,
+ * flattened for display. Every field is the engine's own - the rows are ordered
+ * in pure code from the graph index, so no field here is a model's reading of a
+ * document.
+ *
+ * `make` and `product_type` are null when the index holds none for that
+ * revision, and the UI says so rather than inferring a manufacturer from the AD
+ * number.
+ */
+export interface ListingRow {
+  readonly ad_number: string;
+  readonly publication_date: string;
+  readonly effective_on: string;
+  /** "91 FR 67452", as the Federal Register index carries it. */
+  readonly fr_citation: string;
+  readonly is_current: boolean;
+  readonly make: string | null;
+  readonly product_type: string | null;
+}
+
+/**
+ * A corpus listing: the newest directives *this corpus* holds, which is not the
+ * same set as the newest directives that exist.
+ *
+ * The three bounds are not decoration. `rows` is the head of
+ * `total_available`, ordered by `ordered_by`, over a corpus that runs from
+ * `corpus_earliest` to `corpus_latest` - so a run whose corpus ended months ago
+ * must not read as a live Federal Register feed. They travel with the rows
+ * because the only honest way to render a top-N is beside the N it came from.
+ */
+export interface ListingPayload {
+  readonly rows: readonly ListingRow[];
+  /**
+   * How the rows were ordered, in the engine's own words - the running service
+   * sends "publication_date descending", not a bare field name. It is printed
+   * beside the rows and never compared against a literal.
+   */
+  readonly ordered_by: string;
+  readonly corpus_earliest: string;
+  readonly corpus_latest: string;
+  /** How many revisions the ordering ran over. `rows` is the head of it. */
+  readonly total_available: number;
+  readonly stage_ms: number;
+}
+
 export interface RefusalPayload<C extends RefusalCode = RefusalCode> {
   /**
    * The keyed detail object when the engine sends one, or the engine's own
@@ -491,7 +537,8 @@ export type EngineEvent =
   | { readonly event: "verification"; readonly data: VerificationPayload }
   | { readonly event: "refusal"; readonly data: RefusalPayload }
   | { readonly event: "done"; readonly data: DonePayload }
-  | { readonly event: "error"; readonly data: ErrorPayload };
+  | { readonly event: "error"; readonly data: ErrorPayload }
+  | { readonly event: "listing"; readonly data: ListingPayload };
 
 /** Compile-time proof that the union covers exactly the contract's event names. */
 type MissingFromUnion = Exclude<SseEventName, EngineEvent["event"]>;
@@ -518,4 +565,5 @@ export const EVENT_STAGE: Readonly<Record<SseEventName, string>> = {
   refusal: "refuse",
   done: "done",
   error: "error",
+  listing: "listing",
 };

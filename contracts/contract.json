@@ -1,5 +1,5 @@
 {
-  "contract_version": "1.3.0",
+  "contract_version": "1.4.0",
   "description": "Single source of truth for the AD traceability engine. Every node type, edge type, enum value, event name and payload key used anywhere in engine/, web/ or eval/ MUST appear here. tests/test_contract.py fails the build on any key that does not.",
   "node_types": {
     "Docket": {
@@ -315,7 +315,8 @@
       "requirement",
       "revision",
       "search",
-      "fleet_impact"
+      "fleet_impact",
+      "recent"
     ],
     "refusal_code": [
       "NEED_CONFIG",
@@ -521,6 +522,17 @@
       "stage": "error",
       "payload": [
         "message"
+      ]
+    },
+    "listing": {
+      "stage": "listing",
+      "payload": [
+        "rows",
+        "ordered_by",
+        "corpus_earliest",
+        "corpus_latest",
+        "total_available",
+        "stage_ms"
       ]
     }
   },

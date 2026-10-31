@@ -10,7 +10,7 @@
  * copied in, including the user-supplied facts the answer rested on.
  */
 import type { RefusalCode } from "./contract";
-import type { AnswerEnvelope, QueryPlan, RefusalPayload } from "./events";
+import type { AnswerEnvelope, ListingPayload, QueryPlan, RefusalPayload } from "./events";
 import type { CarriedContext, SuppliedFact } from "./conversation";
 import { contextFromPlan } from "./conversation";
 import type { DroppedSentence, EngineView, VerifiedSentence } from "./useEngineStream";
@@ -26,6 +26,8 @@ export interface Turn {
   readonly supplied: readonly SuppliedFact[];
   readonly answer: readonly VerifiedSentence[];
   readonly dropped: readonly DroppedSentence[];
+  /** The corpus listing this turn answered with, if it answered with one. */
+  readonly listing: ListingPayload | null;
   readonly refusal: RefusalPayload | null;
   readonly withheldBy: RefusalCode | null;
   readonly withheldCount: number;
@@ -42,6 +44,7 @@ export function hasOutcome(state: EngineView): boolean {
   return (
     state.answer.length > 0 ||
     state.deltas.length > 0 ||
+    state.listing !== null ||
     state.refusal !== null ||
     state.decisionUnavailable !== null ||
     state.failure !== null ||
@@ -69,6 +72,7 @@ export function snapshotTurn(
     supplied,
     answer: state.answer,
     dropped: state.dropped,
+    listing: state.listing,
     refusal: state.refusal,
     withheldBy: state.answerWithheldBy,
     withheldCount: state.withheldCount,

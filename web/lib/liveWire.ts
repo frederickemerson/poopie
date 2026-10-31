@@ -581,8 +581,9 @@ export function createEventNormaliser(query: string): EventNormaliser {
         return { event: "done", data: payload };
       }
       default:
-        // query_plan, answer_delta, refusal and error already arrive in the
-        // declared shape; `detail` is typed to accept the engine's sentence.
+        // query_plan, answer_delta, listing, refusal and error already arrive
+        // in the declared shape; `detail` is typed to accept the engine's
+        // sentence, and a listing row is flat scalars the engine computed.
         return { event: name, data } as EngineEvent;
     }
   };

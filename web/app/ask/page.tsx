@@ -6,6 +6,7 @@ import { ReplayNotice } from "@/components/ReplayNotice";
 import { BackendStatus } from "@/components/BackendStatus";
 import { AnswerEnvelopePanel } from "@/components/centre/AnswerEnvelopePanel";
 import { AnswerStream } from "@/components/centre/AnswerStream";
+import { ListingPanel } from "@/components/centre/ListingPanel";
 import { RefusalCard } from "@/components/centre/RefusalCard";
 import type { FocusRequest } from "@/components/centre/RefusalResolver";
 import { SupersededBanner } from "@/components/centre/SupersededBanner";
@@ -297,6 +298,7 @@ export default function Page() {
   const hasResult =
     state.answer.length > 0 ||
     state.deltas.length > 0 ||
+    state.listing !== null ||
     state.refusal !== null ||
     state.decisionUnavailable !== null ||
     state.paragraphs.length > 0 ||
@@ -306,7 +308,11 @@ export default function Page() {
 
   /** Changes as the live turn gains content, so the thread can re-pin scroll. */
   const liveKey =
-    state.runId * 1_000 + state.answer.length + state.deltas.length + (state.refusal ? 1 : 0);
+    state.runId * 1_000 +
+    state.answer.length +
+    state.deltas.length +
+    (state.refusal ? 1 : 0) +
+    (state.listing ? 1 : 0);
 
   const suggestions = useMemo(
     () => LIVE_DEMOS.slice(0, 3).map((d) => d.query),
@@ -497,6 +503,7 @@ export default function Page() {
                     >
                       {state.deltas.length === 0 &&
                       !state.refusal &&
+                      !state.listing &&
                       !state.decisionUnavailable ? (
                         <p className="t-mono text-ink-3">
                           {streaming ? "retrieving and deciding…" : "ask a question."}
@@ -509,6 +516,11 @@ export default function Page() {
                         activeCitationId={citation?.id ?? null}
                         onFocusCitation={setCitation}
                       />
+                      {/* A corpus listing is this run's answer, so it sits in
+                          the answer region and is announced with it. It states
+                          its own bounds: it is the newest this corpus holds,
+                          not the newest that exist. */}
+                      {state.listing ? <ListingPanel listing={state.listing} /> : null}
                     </section>
 
                     {envelope ? (
@@ -559,8 +571,9 @@ export default function Page() {
                       {state.answer.length > 0
                         ? "Every sentence above carries at least one citation that resolves to a paragraph in this run’s retrieved set. "
                         : "No answer prose is shown for this run. "}
-                      Applicability was decided by the rules engine, not by the language
-                      model.
+                      {state.listing && state.answer.length === 0
+                        ? "This run answered with a listing computed in code from the graph index; no applicability was decided, because a listing is not about one aircraft."
+                        : "Applicability was decided by the rules engine, not by the language model."}
                     </p>
                   </div>
                 </Thread>

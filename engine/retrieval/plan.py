@@ -40,6 +40,13 @@ Read the user's question and fill the schema. Rules:
   history, in which case "specific" or "all".
 - intent must be one of the allowed values. Use "search" when none of the more
   specific intents fits.
+- intent is "recent" only when the question asks which directives are the
+  newest, most recent or latest ones held, and names no directive, no docket and
+  no aircraft: "what are the latest ADs", "which ADs came out most recently",
+  "show me the newest directives". A question that names any subject is not
+  "recent": "the latest revision of AD 2026-21-07" names a directive,
+  "recent Boeing 737 ADs" names an aircraft, and "recent fuel pump ADs" asks
+  about a topic -- all of those are an ordinary search or a revision question.
 - ambiguities lists anything genuinely unclear, in the user's own words. An empty
   list is the normal case.
 - You decide nothing else. You do not judge applicability, you do not decide

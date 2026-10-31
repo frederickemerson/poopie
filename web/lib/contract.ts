@@ -1,7 +1,7 @@
 // GENERATED FROM contracts/contract.json - DO NOT EDIT BY HAND.
 // Regenerate with: python contracts/gen_ts.py
 
-export const CONTRACT_VERSION = "1.3.0";
+export const CONTRACT_VERSION = "1.4.0";
 
 export type ParagraphRole = "EFFECTIVE_DATE" | "AFFECTED_ADS" | "APPLICABILITY" | "SUBJECT" | "UNSAFE_CONDITION" | "COMPLIANCE" | "REQUIRED_ACTIONS" | "EXCEPTIONS" | "CREDIT" | "AMOC" | "ADDITIONAL_INFO" | "IBR" | "OTHER";
 export const PARAGRAPH_ROLE: readonly ParagraphRole[] = ["EFFECTIVE_DATE", "AFFECTED_ADS", "APPLICABILITY", "SUBJECT", "UNSAFE_CONDITION", "COMPLIANCE", "REQUIRED_ACTIONS", "EXCEPTIONS", "CREDIT", "AMOC", "ADDITIONAL_INFO", "IBR", "OTHER"] as const;
@@ -18,8 +18,8 @@ export const DECISION: readonly Decision[] = ["APPLIES", "DOES_NOT_APPLY", "CANN
 export type ComplianceBasis = "CALENDAR_DATE" | "FLIGHT_HOURS" | "FLIGHT_CYCLES" | "DAYS_AFTER_EFFECTIVE" | "EXTERNAL_DOCUMENT" | "UNPARSED";
 export const COMPLIANCE_BASIS: readonly ComplianceBasis[] = ["CALENDAR_DATE", "FLIGHT_HOURS", "FLIGHT_CYCLES", "DAYS_AFTER_EFFECTIVE", "EXTERNAL_DOCUMENT", "UNPARSED"] as const;
 
-export type Intent = "applicability" | "requirement" | "revision" | "search" | "fleet_impact";
-export const INTENT: readonly Intent[] = ["applicability", "requirement", "revision", "search", "fleet_impact"] as const;
+export type Intent = "applicability" | "requirement" | "revision" | "search" | "fleet_impact" | "recent";
+export const INTENT: readonly Intent[] = ["applicability", "requirement", "revision", "search", "fleet_impact", "recent"] as const;
 
 export type RefusalCode = "NEED_CONFIG" | "CANNOT_DETERMINE" | "NO_EVIDENCE" | "OUT_OF_SCOPE" | "SUPERSEDED" | "EXTERNAL_SOURCE_REQUIRED";
 export const REFUSAL_CODE: readonly RefusalCode[] = ["NEED_CONFIG", "CANNOT_DETERMINE", "NO_EVIDENCE", "OUT_OF_SCOPE", "SUPERSEDED", "EXTERNAL_SOURCE_REQUIRED"] as const;
@@ -46,7 +46,7 @@ export type SourceKind = "REVISION" | "NPRM" | "USER_DOCUMENT";
 export const SOURCE_KIND: readonly SourceKind[] = ["REVISION", "NPRM", "USER_DOCUMENT"] as const;
 
 export type SseEventName =
-  "entities" | "query_plan" | "retrieval" | "decision" | "answer_delta" | "verification" | "refusal" | "done" | "error";
+  "entities" | "query_plan" | "retrieval" | "decision" | "answer_delta" | "verification" | "refusal" | "done" | "error" | "listing";
 
 export const SSE_PAYLOAD_KEYS: Record<SseEventName, readonly string[]> = {
   entities: ["entities", "stage_ms"],
@@ -58,6 +58,7 @@ export const SSE_PAYLOAD_KEYS: Record<SseEventName, readonly string[]> = {
   refusal: ["code", "detail", "resolvable_by", "evidence_paragraph_ids"],
   done: ["total_ms", "stage_timings", "envelope"],
   error: ["message"],
+  listing: ["rows", "ordered_by", "corpus_earliest", "corpus_latest", "total_available", "stage_ms"],
 };
 
 export const REFUSAL_SEMANTICS: Record<RefusalCode, {

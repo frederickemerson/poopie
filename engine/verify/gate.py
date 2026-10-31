@@ -190,7 +190,7 @@ def evaluate_gate(
         and not entities.models
         and not entities.typecodes
     )
-    # "search" is the plan's catch-all intent; the other four are AD-specific.
+    # "search" is the plan's catch-all intent; every other one is AD-specific.
     # That enum is the only thing separating "this is not an AD question" from
     # "this is an AD question that has not said which AD", and the two want
     # opposite refusals: one sends the engineer elsewhere, the other tells them

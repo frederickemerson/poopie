@@ -28,6 +28,7 @@ from engine.api.answer import build_envelope, write_answer
 from engine.api.applicability import ApplicabilityStore, decide_for_query, fleet_matrix
 from engine.api.citations import EMPTY_BOOK, ReferenceBook, page_report, resolver_for
 from engine.api.library import Library
+from engine.graph.recent import RecentIndex, ad_products, is_recent_intent
 from engine.graph.stage import annotate, split_obligation_evidence
 from engine.ingest.user_parse import (
     MAX_UPLOAD_BYTES,
@@ -81,6 +82,11 @@ class _State:
     references: ReferenceBook = EMPTY_BOOK
     #: The size of the indexed corpus, which the latency target is relative to.
     corpus_size: dict[str, Any] | None = None
+    #: Every revision ordered newest first, for the "recent" intent. Ordered
+    #: once here so answering "what is newest" is a slice, not a sort. None
+    #: when startup did not get far enough to build it, in which case that
+    #: intent is simply not routed; see _stream.
+    recent: RecentIndex | None = None
     #: Documents the user loaded. None until startup has run; its own errors
     #: are reported through /health rather than failing the whole service, since
     #: a library that will not attach must not take the shipped corpus down.
@@ -123,6 +129,12 @@ def _startup() -> None:
         "federal_register_pages": pages["total_distinct_pages"],
         "pages": pages,
     }
+    # Built from nodes already in memory: the reference book holds every
+    # Revision record and the corpus graph holds every AD node, so this costs
+    # one sort and no file read.
+    STATE.recent = RecentIndex.build(
+        STATE.references.revisions.values(), ad_products(STATE.corpus.graph)
+    )
     STATE.ledger = CostLedger(cap_usd=default_cap_usd())
     STATE.client = LLMClient(STATE.ledger, offline=not have_api_key())
     STATE.applicability = ApplicabilityStore.load()
@@ -234,6 +246,59 @@ class LibraryQuery(BaseModel):
     k: int = 8
 
 
+def _recent_events(
+    index: RecentIndex, started: float, timings: dict[str, float]
+) -> Iterator[str]:
+    """Answer "what is newest in the corpus" from node metadata, in code.
+
+    This path deliberately runs neither the answer writer nor the verifier, and
+    it does not retrieve. The publication dates, effective dates and Federal
+    Register citations it reports are fields on Revision and AD nodes; no
+    paragraph states them, so there is no span a model could quote and no quote
+    the verifier could re-check. Making one up to satisfy the citation format
+    would be a fabrication, which is the one thing the format exists to stop.
+
+    So the rows ARE the evidence, and they are streamed as the contract's
+    ``listing`` event -- every value copied off a node, nothing derived. The
+    envelope that follows reports ANSWERED: this question has an exact answer,
+    and the gate below used to refuse it OUT_OF_SCOPE on the grounds that it
+    names no directive, docket or aircraft. It does not need to; it is a
+    question about the index, and that refusal was the bug.
+
+    ``document_stage`` is left for the envelope to report as UNKNOWN. A listing
+    spans many documents at different stages -- each row carries its own
+    ``is_current`` and ``effective_on`` -- so no single stage is true of it, and
+    picking one would be asserting something about ten documents at once.
+    """
+    t0 = time.perf_counter()
+    listing = index.latest()
+    timings["listing"] = (time.perf_counter() - t0) * 1000
+    yield _sse("listing", listing.sse_payload(round(timings["listing"], 2)))
+    yield _sse(
+        "done",
+        {
+            "total_ms": round((time.perf_counter() - started) * 1000, 2),
+            "stage_timings": {k: round(v, 2) for k, v in timings.items()},
+            "envelope": build_envelope(
+                answer_status="ANSWERED",
+                document_stage=None,
+                decision=None,
+                decision_unavailable=(
+                    "this question asks what the corpus holds, not whether one "
+                    "directive applies to an aircraft"
+                ),
+                verification=None,
+                answer=None,
+                revision_id=None,
+                superseded_by=None,
+                refusals=[],
+                traversal=None,
+                unreviewed_rules=0,
+            ),
+        },
+    )
+
+
 def _stream(
     q: str, tail_number: str | None, *, include_user_documents: bool = False
 ) -> Iterator[str]:
@@ -266,6 +331,19 @@ def _stream(
             "model": getattr(outcome, "model", None) if outcome else None,
         },
     )
+
+    # 2a. "What are the latest ADs?" is answered here and ends the turn. It
+    # has to come before retrieval and the gate, not after: the gate refused it
+    # OUT_OF_SCOPE for naming no directive, docket or aircraft, and a question
+    # about the index itself names none by nature. See _recent_events for why
+    # no prose and no verification happen on this path.
+    #
+    # The planner is advisory: a plan of None, from no API key or a reached
+    # budget cap, is not a question about recency and is not routed here, so
+    # the path below stays exactly what it was.
+    if is_recent_intent(plan) and STATE.recent is not None:
+        yield from _recent_events(STATE.recent, started, timings)
+        return
 
     # 3. Retrieval - graph filter, then keyword + dense, fused. No model.
     t0 = time.perf_counter()
