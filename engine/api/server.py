@@ -247,7 +247,11 @@ class LibraryQuery(BaseModel):
 
 
 def _recent_events(
-    index: RecentIndex, started: float, timings: dict[str, float]
+    index: RecentIndex,
+    started: float,
+    timings: dict[str, float],
+    *,
+    published_year: str | None = None,
 ) -> Iterator[str]:
     """Answer "what is newest in the corpus" from node metadata, in code.
 
@@ -271,7 +275,9 @@ def _recent_events(
     picking one would be asserting something about ten documents at once.
     """
     t0 = time.perf_counter()
-    listing = index.latest()
+    listing = (
+        index.published_in(published_year) if published_year else index.latest()
+    )
     timings["listing"] = (time.perf_counter() - t0) * 1000
     yield _sse("listing", listing.sse_payload(round(timings["listing"], 2)))
     yield _sse(
@@ -342,7 +348,12 @@ def _stream(
     # budget cap, is not a question about recency and is not routed here, so
     # the path below stays exactly what it was.
     if is_recent_intent(plan) and STATE.recent is not None:
-        yield from _recent_events(STATE.recent, started, timings)
+        yield from _recent_events(
+            STATE.recent,
+            started,
+            timings,
+            published_year=getattr(plan, "published_year", None),
+        )
         return
 
     # 3. Retrieval - graph filter, then keyword + dense, fused. No model.

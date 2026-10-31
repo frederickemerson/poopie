@@ -444,6 +444,13 @@ export interface ListingPayload {
    * beside the rows and never compared against a literal.
    */
   readonly ordered_by: string;
+  /**
+   * What the rows were narrowed to, in the engine's own words ("published in
+   * 2025"), or null for the whole corpus. It changes what `total_available`
+   * counts - the matches rather than the corpus - so the copy must branch on
+   * it rather than print it as a decoration.
+   */
+  readonly filter: string | null;
   readonly corpus_earliest: string;
   readonly corpus_latest: string;
   /** How many revisions the ordering ran over. `rows` is the head of it. */

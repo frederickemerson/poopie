@@ -97,7 +97,13 @@ function Row({ row }: { readonly row: ListingRow }) {
 
 export function ListingPanel({ listing }: ListingPanelProps) {
   const { dur } = useMotionPrefs();
-  const { rows, ordered_by: orderedBy, corpus_latest: latest, corpus_earliest: earliest } = listing;
+  const {
+    rows,
+    ordered_by: orderedBy,
+    corpus_latest: latest,
+    corpus_earliest: earliest,
+    filter,
+  } = listing;
   const shown = rows.length;
   const total = listing.total_available;
 
@@ -120,7 +126,21 @@ export function ListingPanel({ listing }: ListingPanelProps) {
         <p className="t-label mb-1.5">what this list is</p>
         <p className="t-answer text-ink">
           {shown === 0 ? (
-            <>This corpus holds nothing to list, and it runs only to {latest} in any case.</>
+            filter ? (
+              <>
+                No directive in this corpus was {filter}. The corpus runs from {earliest} to{" "}
+                {latest}, so a date outside that range has nothing to match &mdash; this is not
+                a claim that the FAA published none.
+              </>
+            ) : (
+              <>This corpus holds nothing to list, and it runs only to {latest} in any case.</>
+            )
+          ) : filter ? (
+            <>
+              The {shown} most recently published of the {total.toLocaleString()}{" "}
+              {total === 1 ? "directive" : "directives"} in this corpus {filter}. It is what this
+              engine holds &mdash; not everything the FAA published.
+            </>
           ) : (
             <>
               The {shown} most recently published {shown === 1 ? "directive" : "directives"} in
@@ -130,9 +150,20 @@ export function ListingPanel({ listing }: ListingPanelProps) {
           )}
         </p>
         <p className="t-body mt-2 max-w-[68ch] text-ink-2">
-          The corpus holds <span className="t-figure">{total.toLocaleString()}</span> published
-          directives, from <span className="t-mono">{earliest}</span> to{" "}
-          <span className="t-mono">{latest}</span>, ordered by {orderedBy}
+          {filter ? (
+            <>
+              The corpus runs from <span className="t-mono">{earliest}</span> to{" "}
+              <span className="t-mono">{latest}</span>;{" "}
+              <span className="t-figure">{total.toLocaleString()}</span> of its directives were{" "}
+              {filter}, ordered by {orderedBy}
+            </>
+          ) : (
+            <>
+              The corpus holds <span className="t-figure">{total.toLocaleString()}</span> published
+              directives, from <span className="t-mono">{earliest}</span> to{" "}
+              <span className="t-mono">{latest}</span>, ordered by {orderedBy}
+            </>
+          )}
           {shown === 0 ? (
             ". The ordering returned no rows for this question."
           ) : (

@@ -135,6 +135,11 @@ class Listing:
     corpus_earliest: str | None
     corpus_latest: str | None
     total_available: int
+    #: What the rows were narrowed to, in prose, or None for the whole corpus.
+    #: It travels with the answer because "the 10 newest" and "the 10 newest of
+    #: the 212 published in 2025" are different claims, and the reader cannot
+    #: tell them apart from the rows alone.
+    filter_label: str | None = None
 
     def sse_payload(self, stage_ms: float) -> dict[str, Any]:
         """The contract's ``listing`` payload, named by this object itself.
@@ -146,6 +151,7 @@ class Listing:
         """
         return {
             "rows": [dict(row) for row in self.rows],
+            "filter": self.filter_label,
             "ordered_by": self.ordered_by,
             "corpus_earliest": self.corpus_earliest,
             "corpus_latest": self.corpus_latest,
@@ -189,6 +195,30 @@ class RecentIndex:
             corpus_earliest=self.corpus_earliest,
             corpus_latest=self.corpus_latest,
             total_available=self.total_available,
+        )
+
+    def published_in(self, year: str, limit: int = DEFAULT_LIMIT) -> Listing:
+        """The ``limit`` newest revisions published in ``year``.
+
+        ``total_available`` counts the matches, not the corpus, because that is
+        what the reader is being shown the head of. The corpus window still
+        travels, so a year outside it returns no rows next to the range that
+        explains why -- which is an answer, where a bare empty list would read
+        as "no directives were published that year".
+
+        The rows are already ordered, so filtering preserves that order and the
+        slice stays the head of the match set.
+        """
+        matched = tuple(
+            row for row in self.rows if str(row.get("publication_date") or "").startswith(f"{year}-")
+        )
+        return Listing(
+            rows=matched[: max(0, limit)],
+            ordered_by=ORDERED_BY,
+            corpus_earliest=self.corpus_earliest,
+            corpus_latest=self.corpus_latest,
+            total_available=len(matched),
+            filter_label=f"published in {year}",
         )
 
     # ------------------------------------------------------------- building

@@ -385,3 +385,47 @@ def test_the_built_corpus_answers_the_question_it_used_to_refuse():
     for row in listing.rows:
         assert row["ad_number"], f"a listing row has no AD number: {row}"
         assert row["fr_citation"], f"{row['ad_number']} has no Federal Register citation"
+
+
+# ------------------------------------------------- narrowing to one year
+
+
+def test_a_year_filter_counts_the_matches_not_the_corpus():
+    """``total_available`` is what the rows are the head of.
+
+    Left as the corpus size it would read as "10 of 2,161", when the honest
+    claim for a year-scoped question is "10 of the 317 published that year".
+    """
+    listing = index().published_in("2024")
+
+    assert listing.filter_label == "published in 2024"
+    assert listing.total_available == sum(
+        1 for r in REVISIONS if r["publication_date"].startswith("2024-")
+    )
+    assert all(r["publication_date"].startswith("2024-") for r in listing.rows)
+
+
+def test_a_year_outside_the_corpus_returns_no_rows_but_keeps_the_window():
+    """An empty list alone would read as "the FAA published none that year".
+
+    The corpus window still travels, so the reader can see the question fell
+    outside what this engine holds rather than outside what exists.
+    """
+    listing = index().published_in("1995")
+
+    assert listing.rows == ()
+    assert listing.total_available == 0
+    assert listing.corpus_earliest and listing.corpus_latest
+    assert listing.filter_label == "published in 1995"
+
+
+def test_the_unfiltered_listing_still_reports_no_filter():
+    assert index().latest().filter_label is None
+    assert index().latest().sse_payload(1.0)["filter"] is None
+
+
+def test_the_filter_travels_on_the_contract_payload():
+    payload = index().published_in("2024").sse_payload(2.0)
+
+    assert payload["filter"] == "published in 2024"
+    validate_event("listing", payload)

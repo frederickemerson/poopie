@@ -1,7 +1,7 @@
 // GENERATED FROM contracts/contract.json - DO NOT EDIT BY HAND.
 // Regenerate with: python contracts/gen_ts.py
 
-export const CONTRACT_VERSION = "1.4.0";
+export const CONTRACT_VERSION = "1.5.0";
 
 export type ParagraphRole = "EFFECTIVE_DATE" | "AFFECTED_ADS" | "APPLICABILITY" | "SUBJECT" | "UNSAFE_CONDITION" | "COMPLIANCE" | "REQUIRED_ACTIONS" | "EXCEPTIONS" | "CREDIT" | "AMOC" | "ADDITIONAL_INFO" | "IBR" | "OTHER";
 export const PARAGRAPH_ROLE: readonly ParagraphRole[] = ["EFFECTIVE_DATE", "AFFECTED_ADS", "APPLICABILITY", "SUBJECT", "UNSAFE_CONDITION", "COMPLIANCE", "REQUIRED_ACTIONS", "EXCEPTIONS", "CREDIT", "AMOC", "ADDITIONAL_INFO", "IBR", "OTHER"] as const;
@@ -58,7 +58,7 @@ export const SSE_PAYLOAD_KEYS: Record<SseEventName, readonly string[]> = {
   refusal: ["code", "detail", "resolvable_by", "evidence_paragraph_ids"],
   done: ["total_ms", "stage_timings", "envelope"],
   error: ["message"],
-  listing: ["rows", "ordered_by", "corpus_earliest", "corpus_latest", "total_available", "stage_ms"],
+  listing: ["rows", "filter", "ordered_by", "corpus_earliest", "corpus_latest", "total_available", "stage_ms"],
 };
 
 export const REFUSAL_SEMANTICS: Record<RefusalCode, {

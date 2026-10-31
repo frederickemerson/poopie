@@ -38,8 +38,16 @@ Read the user's question and fill the schema. Rules:
   from a tail number, or a manufacturer from a model.
 - revision_scope is "current" unless the question names a revision or asks about
   history, in which case "specific" or "all".
+- published_year is the four-digit year a question scopes itself to when it asks
+  which directives were published, issued or released in that year ("which ADs
+  were published in 2025" -> "2025"). Leave it null otherwise. A year that is
+  part of an AD number, a docket or an amendment is not a published_year.
 - intent must be one of the allowed values. Use "search" when none of the more
   specific intents fits.
+- use "recent" for a question about the corpus as a whole rather than about one
+  document: which directives are newest, what is new, or which were published in
+  a given year. It names no directive, docket or aircraft. "What are the latest
+  ADs", "what's new" and "which ADs were published in 2025" are all "recent".
 - intent is "recent" only when the question asks which directives are the
   newest, most recent or latest ones held, and names no directive, no docket and
   no aircraft: "what are the latest ADs", "which ADs came out most recently",
@@ -62,6 +70,10 @@ class QueryPlan:
     ad_number: str | None = None
     docket_id: str | None = None
     topic: str | None = None
+    #: The year a corpus-listing question scopes itself to, as written. A
+    #: string rather than an int because the contract's schema notation has one
+    #: nullable scalar form and a second one would be a shape to keep in sync.
+    published_year: str | None = None
     revision_scope: str = "current"
     ambiguities: list[str] = field(default_factory=list)
 
@@ -72,6 +84,7 @@ class QueryPlan:
             "ad_number": self.ad_number,
             "docket_id": self.docket_id,
             "topic": self.topic,
+            "published_year": self.published_year,
             "revision_scope": self.revision_scope,
             "ambiguities": self.ambiguities,
         }
@@ -135,6 +148,21 @@ def plan_schema() -> dict[str, Any]:
     }
 
 
+def _year(raw: Any) -> str | None:
+    """A four-digit year, or nothing. Anything else is discarded, not repaired.
+
+    The planner is told to copy identifiers verbatim and this is the one field
+    it is asked to produce rather than copy, so it is the one field worth
+    bounding. A value that is not a plain year would be used to filter the
+    whole corpus, and a silent mis-filter reads as "there were no directives
+    that year", which is a false claim about the corpus.
+    """
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    return text if len(text) == 4 and text.isdigit() else None
+
+
 def _coerce(raw: dict[str, Any]) -> QueryPlan:
     """Validate the model's object against the contract enums before use."""
     intent = raw.get("intent")
@@ -161,6 +189,7 @@ def _coerce(raw: dict[str, Any]) -> QueryPlan:
         ad_number=raw.get("ad_number"),
         docket_id=raw.get("docket_id"),
         topic=raw.get("topic"),
+        published_year=_year(raw.get("published_year")),
         revision_scope=scope,
         ambiguities=[str(a) for a in ambiguities],
     )
