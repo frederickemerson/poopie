@@ -30,6 +30,11 @@ from pathlib import Path
 from engine import paths
 
 MANIFEST_PATH = paths.BUILD / "provenance.jsonl"
+#: Proposals are hashed into their own manifest. Same record shape -- the key
+#: field is named revision_id but it holds whichever Federal Register document
+#: the bytes belong to -- kept apart so a sweep over the citable corpus does
+#: not report every proposal XML as an unrecorded file.
+NPRM_MANIFEST_PATH = paths.NPRM_PROVENANCE_JSONL
 
 BASIS_FETCHED = "fetched"
 BASIS_CACHE_ONLY = "cache_hash_only"
@@ -262,15 +267,37 @@ def format_report(report: VerifyReport) -> str:
     return "\n".join(lines)
 
 
+#: Every manifest the build writes, with the cache it describes. Proposals get
+#: their own pair so the adopted corpus's sweep is unchanged and so an
+#: unrecorded proposal XML cannot be reported against the adopted manifest.
+MANIFESTS: tuple[tuple[str, Path, Path], ...] = (
+    ("adopted revisions", MANIFEST_PATH, paths.FR_XML_CACHE),
+    ("proposals", NPRM_MANIFEST_PATH, paths.FR_NPRM_XML_CACHE),
+)
+
+
 def run_verify_cli() -> int:
-    """Exit status for ``--verify-provenance``: non-zero on any drift."""
+    """Exit status for ``--verify-provenance``: non-zero on any drift.
+
+    Every manifest the build writes is checked. A manifest that does not exist
+    yet is reported and skipped; a manifest whose bytes moved is a failure,
+    because a citation into those bytes is no longer reproducible.
+    """
     if not MANIFEST_PATH.exists():
         print(f"no manifest at {MANIFEST_PATH}; run a build first")
         return 2
-    try:
-        report = verify()
-    except ProvenanceError as exc:
-        print(f"provenance verification failed: {exc}")
-        return 2
-    print(format_report(report))
-    return 0 if report.ok else 1
+    status = 0
+    for label, manifest_path, cache_dir in MANIFESTS:
+        if not manifest_path.exists():
+            print(f"{label}: no manifest at {manifest_path}; not harvested")
+            continue
+        try:
+            report = verify(manifest_path, cache_dir)
+        except ProvenanceError as exc:
+            print(f"{label}: provenance verification failed: {exc}")
+            status = 2
+            continue
+        print(f"{label}: {format_report(report)}")
+        if not report.ok and status == 0:
+            status = 1
+    return status

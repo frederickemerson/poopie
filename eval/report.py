@@ -99,8 +99,8 @@ def _label_audit(runs: Sequence[dict[str, Any]]) -> list[str]:
             f"and are **excluded from every rate above except `target_ad_recall`**, "
             f"which measures retrieval and so still counts a run whose writer failed. "
             f"A denominator can therefore be smaller than the class it came from. "
-            f"Each record carries the exception text; 
-            f"the commonest cause is the shared cost ledger refusing a call "
+            f"Each record carries the exception text; the commonest cause is the "
+            f"shared cost ledger refusing a call "
             f"({', '.join(sorted(r['qid'] for r in errored))})."
         )
     thin = [

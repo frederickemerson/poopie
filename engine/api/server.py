@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterable, Iterator
 from dataclasses import asdict, is_dataclass
-from typing import Any, Iterator
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,11 +25,13 @@ from pydantic import BaseModel
 from contracts.contract import validate_event
 from engine.api.answer import build_envelope, write_answer
 from engine.api.applicability import ApplicabilityStore, decide_for_query, fleet_matrix
+from engine.api.citations import EMPTY_BOOK, ReferenceBook, page_report, resolver_for
 from engine.graph.stage import annotate
 from engine.llm.client import LLMClient, LLMUnavailable, have_api_key
 from engine.llm.ledger import CostLedger, default_cap_usd
 from engine.retrieval.corpus import load_corpus
 from engine.retrieval.entities import extract_entities
+from engine.retrieval.layout import default_corpus_paths
 from engine.retrieval.index import load_index
 from engine.retrieval.plan import plan_query
 from engine.retrieval.search import search
@@ -53,6 +56,11 @@ class _State:
     ledger: CostLedger | None = None
     client: LLMClient | None = None
     applicability: ApplicabilityStore | None = None
+    #: Human-readable citation fields, from the same nodes the corpus came from.
+    #: Never None: an empty book still gives every citation a document_stage.
+    references: ReferenceBook = EMPTY_BOOK
+    #: The size of the indexed corpus, which the latency target is relative to.
+    corpus_size: dict[str, Any] | None = None
     error: str | None = None
 
 
@@ -61,12 +69,26 @@ STATE = _State()
 
 @app.on_event("startup")
 def _startup() -> None:
+    paths = default_corpus_paths()
     try:
-        STATE.corpus = load_corpus()
+        STATE.corpus = load_corpus(paths)
         STATE.index = load_index(STATE.corpus)
     except Exception as exc:  # surfaced per-request, not swallowed
         STATE.error = f"{type(exc).__name__}: {exc}"
         return
+    # Loaded here, once, for the same reason the corpus is: a citation's
+    # human reference is one dict lookup per query, never a file read.
+    STATE.references = ReferenceBook.load(paths.nodes)
+    pages = page_report(STATE.references, source=str(paths.nodes))
+    STATE.corpus_size = {
+        "kind": paths.kind,
+        "paragraphs": len(STATE.corpus.paragraphs),
+        "ad_numbers": len(STATE.corpus.ad_numbers),
+        "revisions": pages["adopted"]["documents"],
+        "proposals": pages["proposed"]["documents"],
+        "federal_register_pages": pages["total_distinct_pages"],
+        "pages": pages,
+    }
     STATE.ledger = CostLedger(cap_usd=default_cap_usd())
     STATE.client = LLMClient(STATE.ledger, offline=not have_api_key())
     STATE.applicability = ApplicabilityStore.load()
@@ -83,6 +105,39 @@ def _plain(obj: Any) -> Any:
     if isinstance(obj, (str, int, float, bool)) or obj is None:
         return obj
     return str(obj)
+
+
+def _retrieval_paragraphs(hits: Iterable[Any], resolve: Any) -> list[dict[str, Any]]:
+    """The retrieved set, each paragraph carrying its human reference.
+
+    The reference rides inside each paragraph rather than in a new top-level
+    payload key, because the contract pins ``retrieval`` to exactly
+    ``paragraphs``, ``scores`` and ``stage_ms`` and this engine does not add
+    payload keys the contract has not declared. It also puts the reference
+    exactly where the UI resolves a citation: against the retrieved paragraph.
+
+    Each row is built from ``Hit.as_payload()``, the hit's own named wire shape,
+    rather than from ``_plain``. ``_plain`` ends in ``str(obj)`` for anything it
+    does not recognise, so a hit it did not recognise would reach the browser as
+    a bare string inside a payload whose top-level keys still validate -- a
+    paragraph that looks present and carries nothing. A hit that cannot name its
+    own fields raises here instead.
+    """
+    out: list[dict[str, Any]] = []
+    for hit in hits:
+        as_payload = getattr(hit, "as_payload", None)
+        if not callable(as_payload):
+            raise TypeError(
+                f"retrieval hit of type {type(hit).__name__} has no as_payload(); the "
+                f"retrieval payload is built from named fields and is never stringified"
+            )
+        row = dict(as_payload())
+        # as_payload is the scoring view and omits the paragraph text, which the
+        # UI needs to draw the cited span inside it.
+        row["text"] = str(getattr(hit, "text", "") or "")
+        row["human_reference"] = resolve(str(row.get("citation_id") or "")).as_dict()
+        out.append(row)
+    return out
 
 
 def _revision_stage(revision_id: str | None) -> dict[str, Any] | None:
@@ -163,10 +218,13 @@ def _stream(q: str, tail_number: str | None) -> Iterator[str]:
         revision_scope=(getattr(plan, "revision_scope", None) or "current"),
     )
     timings["retrieval"] = (time.perf_counter() - t0) * 1000
+    # One resolver for this query: it closes over the retrieved paragraphs, so
+    # every reference it hands out can name the paragraph's role.
+    reference_for = resolver_for(STATE.references, result.hits)
     yield _sse(
         "retrieval",
         {
-            "paragraphs": _plain(result.hits),
+            "paragraphs": _retrieval_paragraphs(result.hits, reference_for),
             "scores": [round(getattr(h, "score", 0.0), 4) for h in result.hits],
             "stage_ms": round(timings["retrieval"], 2),
         },
@@ -250,6 +308,7 @@ def _stream(q: str, tail_number: str | None) -> Iterator[str]:
                     refusals=refusals,
                     traversal=None,
                     unreviewed_rules=_unreviewed_rules(blocked_revision),
+                    references=reference_for,
                 ),
             },
         )
@@ -335,6 +394,7 @@ def _stream(q: str, tail_number: str | None) -> Iterator[str]:
                 refusals=refusals,
                 traversal=None,
                 unreviewed_rules=_unreviewed_rules(revision_id),
+                references=reference_for,
             ),
         },
     )
@@ -342,12 +402,20 @@ def _stream(q: str, tail_number: str | None) -> Iterator[str]:
 
 @app.get("/health")
 def health() -> dict[str, Any]:
+    """Liveness, plus the size of the corpus the latency target applies to.
+
+    The 3-second target is only meaningful next to a corpus size, so the size
+    is served from the same place as the readiness flags rather than quoted in
+    a document that can go stale: paragraphs, documents, and the Federal
+    Register page count the citations themselves add up to.
+    """
     return {
         "corpus_loaded": STATE.corpus is not None,
         "index_loaded": STATE.index is not None,
         "llm": "live" if have_api_key() else "offline",
         "error": STATE.error,
         "spend": STATE.ledger.summary() if STATE.ledger else None,
+        "corpus": STATE.corpus_size,
     }
 
 

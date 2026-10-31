@@ -16,6 +16,13 @@ which is handled explicitly below:
 * ``Docket Number`` is not uniformly FAA-YYYY-NNNN: 60 of the 323 values are
   legacy directorate dockets or carry a re-notice suffix, and one cell names two
   dockets. :func:`normalize_sheet_docket` owns that.
+
+The challenge organizers' re-publication of the same 431 rows
+(``data/reference/challenge-4-ad-index.xlsx``) is read by
+:mod:`engine.ingest.nprm_index_xlsx`, which reuses :func:`clean_cell`,
+:func:`parse_date`, :func:`page_range` and :class:`NPRMRow` from here rather
+than re-implementing them. That module's docstring records which of the quirks
+above still hold in the new file and which the organizers fixed.
 """
 
 from __future__ import annotations
@@ -88,29 +95,47 @@ class SpreadsheetLoad:
     rows_with_multiple_dockets: list[int] = field(default_factory=list)
 
 
-def _parse_date(raw: object, where: str, failures: list[str]) -> dt.date | None:
+def parse_date(
+    raw: object,
+    where: str,
+    failures: list[str],
+    formats: tuple[str, ...] = (DATE_FORMAT,),
+) -> dt.date | None:
+    """Parse a date cell. ``formats`` is tried in order; nothing is guessed.
+
+    ``formats`` exists because the two spreadsheets that carry these 431 rows
+    store the same dates differently: the FAA export uses %m/%d/%Y and the
+    challenge index uses ISO. A failure is appended to ``failures`` and never
+    swallowed.
+    """
     if raw in (None, ""):
         return None
     if isinstance(raw, dt.datetime):
         return raw.date()
     if isinstance(raw, dt.date):
         return raw
-    try:
-        return dt.datetime.strptime(str(raw).strip(), DATE_FORMAT).date()
-    except ValueError as exc:
-        failures.append(f"{where}: {raw!r} ({exc})")
-        return None
+    text = str(raw).strip()
+    last: ValueError | None = None
+    for fmt in formats:
+        try:
+            return dt.datetime.strptime(text, fmt).date()
+        except ValueError as exc:
+            last = exc
+    failures.append(f"{where}: {raw!r} ({last})")
+    return None
 
 
-def _clean(value: object) -> str | None:
+def clean_cell(value: object) -> str | None:
+    """Collapse whitespace; an empty or blank cell becomes None, never ""."""
     if value in (None, ""):
         return None
     text = " ".join(str(value).split())
     return text or None
 
 
-def _page_range(value: object) -> str | None:
-    text = _clean(value)
+def page_range(value: object) -> str | None:
+    """The page range as the sheet displays it, without its wrapper."""
+    text = clean_cell(value)
     if not text:
         return None
     return text.removeprefix("(Pages ").removeprefix("(Page ").removesuffix(")").strip()
@@ -125,7 +150,7 @@ def load_nprm_rows(path: Path) -> SpreadsheetLoad:
     if not raw_rows:
         raise SpreadsheetError(f"{path} has no rows")
 
-    header = [_clean(h) for h in raw_rows[0]]
+    header = [clean_cell(h) for h in raw_rows[0]]
     missing = [c for c in _REQUIRED_COLUMNS if c not in header]
     if missing:
         raise SpreadsheetError(f"{path} is missing expected columns {missing}")
@@ -144,33 +169,33 @@ def load_nprm_rows(path: Path) -> SpreadsheetLoad:
             load.rows_without_docket.append(offset)
         if len(dockets) > 1:
             load.rows_with_multiple_dockets.append(offset)
-        make_raw = _clean(cell("Make"))
+        make_raw = clean_cell(cell("Make"))
         load.rows.append(
             NPRMRow(
                 row_number=offset,
                 docket_ids=dockets,
                 docket_raw=docket_raw,
-                subject_heading=_clean(cell("Subject Heading")),
-                issue_date=_parse_date(cell("Issue Date"), f"row {offset} Issue Date", load.date_parse_failures),
-                ad_number=_clean(cell("AD Number")),
-                publish_date=_parse_date(
+                subject_heading=clean_cell(cell("Subject Heading")),
+                issue_date=parse_date(cell("Issue Date"), f"row {offset} Issue Date", load.date_parse_failures),
+                ad_number=clean_cell(cell("AD Number")),
+                publish_date=parse_date(
                     cell("Citation Publish Date"),
                     f"row {offset} Citation Publish Date",
                     load.date_parse_failures,
                 ),
-                comments_due_date=_parse_date(
+                comments_due_date=parse_date(
                     cell("Comments Due Date"),
                     f"row {offset} Comments Due Date",
                     load.date_parse_failures,
                 ),
                 make=normalize_make(make_raw),
                 make_raw=make_raw,
-                model_text=_clean(cell("Model")),
-                product_type=_clean(cell("Product Type")),
-                comment_url=_clean(cell("Link for Submitting Public Comment")),
-                citation=_clean(cell("Citation")),
-                page_range=_page_range(cell("Page Number")),
-                summary=_clean(cell("Summary")),
+                model_text=clean_cell(cell("Model")),
+                product_type=clean_cell(cell("Product Type")),
+                comment_url=clean_cell(cell("Link for Submitting Public Comment")),
+                citation=clean_cell(cell("Citation")),
+                page_range=page_range(cell("Page Number")),
+                summary=clean_cell(cell("Summary")),
             )
         )
     return load

@@ -26,6 +26,7 @@ import json
 import re
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from contracts.contract import enum  # noqa: E402
+from engine.api.citations import (  # noqa: E402
+    EMPTY_BOOK,
+    HumanReference,
+    reference_dicts,
+)
 from engine.llm.client import LLMClient, LLMUnavailable  # noqa: E402
 from engine.llm.ledger import MODEL_ANSWER, BudgetExceeded  # noqa: E402
 from engine.verify.verifier import Sentence, Verification  # noqa: E402
@@ -334,15 +340,25 @@ def build_envelope(
     refusals: list[dict[str, Any]],
     traversal: dict[str, Any] | None,
     unreviewed_rules: int,
+    references: Callable[[str], HumanReference] | None = None,
 ) -> dict[str, Any]:
     """Assemble contract.answer_envelope. Every field present, no silence.
 
     A field that cannot be filled carries the reason it cannot, which is why
     this takes ``decision_unavailable`` and not just ``decision``.
+
+    ``references`` turns each citation id into the human reference that sits
+    beside it -- AD number or record_id, the Federal Register citation, the
+    page range, the paragraph label and role, and the document stage. It
+    defaults to a resolver over an empty book rather than to nothing at all,
+    because a citation with no stage attached must not be constructible: an
+    empty book still reports the stage as UNKNOWN and names every field it
+    could not find. See engine/api/citations.py.
     """
     if answer_status not in enum("answer_status"):
         raise ValueError(f"{answer_status!r} is not a contract answer_status")
 
+    resolve = references or EMPTY_BOOK.reference
     kept = list(verification.kept) if verification else []
     citations = [
         {
@@ -350,6 +366,9 @@ def build_envelope(
             "text": v.text,
             "citation_ids": list(v.citation_ids),
             "supporting_citation_id": v.supporting_citation_id,
+            # The findable half of each citation, one entry per citation_id in
+            # the same order. The anchor above is unchanged and still exact.
+            "references": reference_dicts(resolve, v.citation_ids),
         }
         for v in kept
     ]
@@ -366,11 +385,49 @@ def build_envelope(
             "This document is a proposal, not a rule. It establishes no "
             "obligation and cannot be complied with."
         )
+    # A sentence can cite a proposal while the answer's own revision is in
+    # force, so the stage of the *cited* documents is stated separately from
+    # the stage of the answer. The contract forbids a proposal being read as a
+    # requirement, and counting them here is how the envelope says so.
+    proposed = {
+        reference["handle"]
+        for citation in citations
+        for reference in citation["references"]
+        if reference["is_proposal"]
+    }
+    if proposed and document_stage != "PROPOSED":
+        limitations.append(
+            f"{len(proposed)} cited document(s) are proposals, not rules "
+            f"({', '.join(sorted(proposed))}). A proposal establishes no obligation "
+            f"and supplies no compliance deadline."
+        )
+    # A citation whose Federal Register page range this engine does not hold
+    # cannot be checked against a paper copy. That is a limitation of the
+    # answer, so it is stated rather than left for the reader to notice.
+    unfindable = sorted(
+        {
+            reference["handle"]
+            for citation in citations
+            for reference in citation["references"]
+            if "page_range" in reference["not_recorded"]
+            or "fr_citation" in reference["not_recorded"]
+        }
+    )
+    if unfindable:
+        limitations.append(
+            f"{len(unfindable)} cited document(s) have no Federal Register citation or "
+            f"page range recorded ({', '.join(unfindable)}), so those citations can be "
+            f"checked against the indexed text but not against a printed page."
+        )
     for refusal in refusals:
         if refusal.get("code") == "EXTERNAL_SOURCE_REQUIRED":
+            # The detail already names the document and says what it blocks, so
+            # it is used as written. The prefix this replaced restated it, and
+            # appending a period to a finished sentence read "corpus..".
+            detail = (refusal.get("detail") or "").strip()
             limitations.append(
-                "Applicability is delegated to a document this engine does not "
-                f"hold: {refusal.get('detail') or 'an external source'}."
+                detail
+                or "Applicability is delegated to a document this engine does not hold."
             )
     if unreviewed_rules:
         limitations.append(

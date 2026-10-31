@@ -1,12 +1,12 @@
 # Evaluation: traceable AD engine vs. plain vector RAG
 
-Generated 2026-10-31 05:00 UTC at commit `9bcf35c`. Method and caveats: `docs/evaluation.md`.
+Generated 2026-10-31 05:10 UTC at commit `a544279`. Method and caveats: `docs/evaluation.md`.
 
 - Corpus `build`: 25687 paragraphs, 2161 revisions, 2117 ADs
 - Fleet: 478 real aircraft; 2151 revisions carry extracted rules
 - Both arms: same corpus, same k=8, same writer prompt, answers written by `claude-sonnet-5-5`; the engine arm also plans with `claude-haiku-5-5`
-- Spend to date: $1.9809 of the $2.00 cap; 446 of 7023 calls served from cache
-- Embedding model warm-up (8858 ms) excluded from all timings
+- Spend to date: $1.9809 of the $2.00 cap; 946 of 7523 calls served from cache
+- Embedding model warm-up (9081 ms) excluded from all timings
 
 ## Question set
 
@@ -35,9 +35,9 @@ Numerator/denominator first in every cell: a rate with no sample size is not a n
 | metric | ours (n=51) | baseline (n=51) |
 |---|---|---|
 | wrong_answer_rate | 8/31 (25.8%) | 21/21 (100.0%) |
-| refusal_recall | 8/31 (25.8%) | 0/31 (0.0%) |
+| refusal_recall | 8/31 (25.8%) | 0/21 (0.0%) |
 | false_refusal_rate | 14/20 (70.0%) | 0/20 (0.0%) |
-| target_ad_recall | 36/36 (100.0%) | 0/30 (0.0%) |
+| target_ad_recall | 36/36 (100.0%) | 0/36 (0.0%) |
 | citation_precision | 80/80 (100.0%) | 34/34 (100.0%) |
 | citation_coverage | 79/79 (100.0%) | 34/56 (60.7%) |
 | applicability_accuracy | 6/6 (100.0%) [10 excluded] | n/a (no decision was available for any of the 10 labelled questions) |
@@ -49,7 +49,7 @@ The wrong code counts as a miss: the code is what tells the user who can resolve
 | expected code | ours | baseline |
 |---|---|---|
 | EXTERNAL_SOURCE_REQUIRED | 0/10 (0.0%) | 0/10 (0.0%) |
-| NEED_CONFIG | 4/11 (36.4%) | 0/11 (0.0%) |
+| NEED_CONFIG | 4/11 (36.4%) | 0/1 (0.0%) |
 | NO_EVIDENCE | 3/3 (100.0%) | 0/3 (0.0%) |
 | OUT_OF_SCOPE | 1/7 (14.3%) | 0/7 (0.0%) |
 
@@ -68,12 +68,12 @@ The wrong code counts as a miss: the code is what tells the user who can resolve
 
 | stage | ours | baseline |
 |---|---|---|
-| answer | 1 ms (n=37) / 18 ms (n=37) | 1 ms (n=51) / 19 ms (n=51) |
+| answer | n/a (cache-served: no fresh model call to time) / n/a (cache-served: no fresh model call to time) | n/a (cache-served: no fresh model call to time) / n/a (cache-served: no fresh model call to time) |
 | applicability | 0 ms (n=51) / 0 ms (n=51) | n/a |
 | entity_pass | 0 ms (n=51) / 0 ms (n=51) | n/a |
-| query_plan | 1 ms (n=51) / 1037 ms (n=51) | n/a |
-| retrieval | 21 ms (n=51) / 63 ms (n=51) | 11 ms (n=51) / 15 ms (n=51) |
-| total | 25 ms (n=51) / 1065 ms (n=51) | 13 ms (n=51) / 32 ms (n=51) |
+| query_plan | n/a (cache-served: no fresh model call to time) / n/a (cache-served: no fresh model call to time) | n/a (cache-served: no fresh model call to time) / n/a (cache-served: no fresh model call to time) |
+| retrieval | 21 ms (n=51) / 67 ms (n=51) | 11 ms (n=51) / 15 ms (n=51) |
+| total | n/a (cache-served: no fresh model call to time) / n/a (cache-served: no fresh model call to time) | n/a (cache-served: no fresh model call to time) / n/a (cache-served: no fresh model call to time) |
 | verify | 0 ms (n=37) / 0 ms (n=37) | n/a |
 
 ## Failure gallery
@@ -343,7 +343,7 @@ The wrong code counts as a miss: the code is what tells the user who can resolve
 ## What this evaluation cannot tell you
 
 - 10 question(s) carry a labelled decision the engine could not produce at all; they are excluded from `applicability_accuracy` rather than scored, and each record says why.
-- 10 run(s) raised instead of returning a verdict (baseline: 10) and are **excluded from every rate above**, so a denominator can be smaller than the class it came from. Each record carries the exception text; the commonest cause is the shared cost ledger refusing a call (amb-02, amb-03, amb-04, amb-05, cfg-01, cfg-02, cfg-03, cfg-04, cfg-05, cfg-06).
+- 10 run(s) raised instead of returning a verdict (baseline: 10) and are **excluded from every rate above except `target_ad_recall`**, which measures retrieval and so still counts a run whose writer failed. A denominator can therefore be smaller than the class it came from. Each record carries the exception text; the commonest cause is the shared cost ledger refusing a call (amb-02, amb-03, amb-04, amb-05, cfg-01, cfg-02, cfg-03, cfg-04, cfg-05, cfg-06).
 - 22 of our refusals came from the verifier dropping too much of a drafted answer, not from the gate deciding up front. That is a later and weaker kind of save: the model had already written the sentence and only citation verification stopped it (ans-02, ans-04, ans-05, ans-07, ans-09, ans-10, ans-12, trap-08, trap-09, trap-10, rev-01, rev-02, rev-05, rev-07, rev-08, oos-01, oos-04, oos-05, amb-02, amb-03, amb-04, amb-05).
 - Small sample: 51 questions, 31 of them traps. Read every rate as an order of magnitude, not a point estimate.
 - No threshold was tuned for this run, and none has been tuned at all: `engine/verify/thresholds.py` states that its values are untuned defaults (term coverage 0.5, kept fraction 0.6, NO_EVIDENCE cosine floor 0.3). The false-refusal and wrong-answer rates above are the pair selecting them requires, measured at those defaults.

@@ -35,9 +35,14 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from engine.graph.stage import SOURCE_KIND_NPRM, SOURCE_KIND_REVISION  # noqa: E402
 from engine.retrieval.corpus import Paragraph  # noqa: E402
 from engine.retrieval.entities import Entities  # noqa: E402
-from engine.retrieval.graph_filter import FilterResult, filter_candidates  # noqa: E402
+from engine.retrieval.graph_filter import (  # noqa: E402
+    DEFAULT_SOURCE_KINDS,
+    FilterResult,
+    filter_candidates,
+)
 from engine.retrieval.index import HybridIndex, _indexed_text, embed  # noqa: E402
 from engine.retrieval.rerank import (  # noqa: E402
     RERANK_WINDOW,
@@ -74,7 +79,7 @@ class Hit:
 
     paragraph_id: str
     ad_number: str | None
-    revision_id: str
+    revision_id: str | None
     label: str
     role: str
     heading: str
@@ -87,6 +92,23 @@ class Hit:
     dense_cosine: float | None
     #: Cross-encoder logit, None when this hit was not reranked.
     rerank_score: float | None = None
+    #: Which kind of document this came from, and its legal stage. Carried on
+    #: the hit itself so no consumer can render or reason about it without the
+    #: stage in hand; a proposal arrives labelled a proposal.
+    source_kind: str = SOURCE_KIND_REVISION
+    document_stage: str = "UNKNOWN"
+    nprm_id: str | None = None
+    record_id: str | None = None
+    fr_citation: str | None = None
+    page_range: str | None = None
+
+    @property
+    def document_id(self) -> str:
+        return str(self.revision_id or self.nprm_id)
+
+    @property
+    def is_proposal(self) -> bool:
+        return self.source_kind == SOURCE_KIND_NPRM
 
     @property
     def citation_id(self) -> str:
@@ -97,6 +119,12 @@ class Hit:
             "paragraph_id": self.paragraph_id,
             "ad_number": self.ad_number,
             "revision_id": self.revision_id,
+            "nprm_id": self.nprm_id,
+            "record_id": self.record_id,
+            "source_kind": self.source_kind,
+            "document_stage": self.document_stage,
+            "fr_citation": self.fr_citation,
+            "page_range": self.page_range,
             "label": self.label,
             "role": self.role,
             "heading": self.heading,
@@ -224,6 +252,8 @@ def search(
     revision_ids: list[str] | None = None,
     prefiltered: FilterResult | None = None,
     rerank: bool | None = None,
+    source_kinds: tuple[str, ...] = DEFAULT_SOURCE_KINDS,
+    nprm_ids: list[str] | None = None,
 ) -> SearchResult:
     """Graph filter, then both arms over the survivors, then RRF.
 
@@ -231,6 +261,10 @@ def search(
     candidates (``None`` means ``RERANK_DEFAULT``). It only reorders paragraphs
     the filter and fusion already chose; if the model is unavailable the RRF
     order is kept and ``rerank_status`` is ``"fallback"`` with the reason.
+
+    ``source_kinds`` defaults to adopted rules only. Proposals are in the index
+    and are retrievable, but only for a caller that asks; see
+    ``graph_filter.DEFAULT_SOURCE_KINDS`` for why the default is not both.
     """
     if rerank is None:
         rerank = RERANK_DEFAULT
@@ -239,6 +273,8 @@ def search(
         entities,
         revision_scope=revision_scope,
         revision_ids=revision_ids,
+        source_kinds=source_kinds,
+        nprm_ids=nprm_ids,
     )
     rows = [
         index.corpus.row_of[pid]
@@ -291,6 +327,12 @@ def search(
             dense_rank=dense.get(row),
             dense_cosine=cosines.get(row),
             rerank_score=rerank_scores.get(row),
+            source_kind=p.source_kind,
+            document_stage=p.document_stage,
+            nprm_id=p.nprm_id,
+            record_id=p.record_id,
+            fr_citation=p.fr_citation,
+            page_range=p.page_range,
         )
         for row, score in ordered
     ]

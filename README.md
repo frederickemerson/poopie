@@ -37,32 +37,66 @@ Sonnet answer writer after the decision is already made.
 
 ## Measured, not claimed
 
+A latency number means nothing without the corpus it was measured on, so the
+size comes first.
+
+**The indexed corpus: 2,592 Federal Register documents — 2,161 adopted ADs and
+431 proposals — 28,735 paragraphs, 2,117 ADs, and 8,363 distinct Federal
+Register pages**, against the challenge's 1,000-page bar: 8.4×. The page count
+is the documents' own `start_page`/`end_page` from the Federal Register index,
+counted as distinct `(volume, page)` pairs so a page two documents share is
+counted once. 7,081 of those pages are adopted ADs and 1,282 are proposals.
+
+```bash
+python3 -m engine.api.citations              # pages, from the built nodes
+python3 -m engine.api.citations --from-index # same, from the cached FR index
+```
+
 | Stage | p50 | p95 | Target |
 |---|---|---|---|
-| Entity pass | 0.07 ms | 0.13 ms | 5 ms |
-| Retrieval (graph filter + BM25 + dense, RRF) | 28.42 ms | 39.25 ms | 100 ms |
+| Entity pass | 0.07 ms | 0.09–0.11 ms | 5 ms |
+| Retrieval (graph filter + BM25 + dense, RRF) | 23.2–25.1 ms | 62.2–66.5 ms | 100 ms |
+| Whole query, model calls included | not claimed | not claimed | 3,000 ms |
 
-Measured warm over 585 samples against the built index of **25,687 paragraphs
-across 2,117 ADs**. Reproduce with:
+Measured warm over 585 samples (39 generated queries × 15 repeats) against the
+built index named above. Reproduce with:
 
 ```bash
 python3 -m engine.retrieval.latency_bench
 ```
 
+A range is quoted rather than one run's decimals, because the spread between
+runs is larger than the decimals: nine runs of the bench — eight here plus one
+run by a second process on the same build — gave retrieval p50 between 23.19
+and 25.09 ms and p95 between 62.20 and 66.46 ms. One further run, taken while a
+dev server was rebuilding, gave p50 31.68 ms; it is named rather than dropped.
+Index load was 0.63–0.69 s throughout. The bench prints the paragraph and AD
+count beside every result, because a p95 without a corpus size is not a
+measurement.
+
+The 3,000 ms row is the contract's `total_p95` target and it is **not claimed
+here**: two of the stages in a whole query are network calls to Anthropic, and
+their latency is not this engine's to promise. What this engine is responsible
+for — the entity pass, retrieval, the rules engine, the verifier — is model-free
+and lands in tens of milliseconds, leaving the 3-second budget almost entirely
+to the two model calls.
+
 The queries are generated from the corpus, not hand-picked — a third name a
 real AD, a third are real paragraph headings, a third name a fleet aircraft
-model — so the mix cannot be chosen to flatter the result. Only the model-free
-stages are claimed here; query planning and answer writing are network calls.
+model — so the mix cannot be chosen to flatter the result.
 
 These replace figures measured when the corpus was 353 paragraphs. Growing it
-73x moved p50 from 11.96 ms to 28.42 ms and left p95 better than before
-(47.64 ms to 39.25 ms), because the graph filter narrows on the AD before
-either arm runs, so a query that names an AD does not scan 25,687 paragraphs.
+81x moved retrieval p50 from 11.96 ms to about 24 ms and p95 from 47.64 ms to
+about 65 ms — an 81x corpus for roughly 2x the median, because the graph filter
+narrows on the AD before either arm runs, so a query that names an AD never
+scans 28,735 paragraphs. The p95 is the tail of the queries that name no AD,
+and adding the 3,048 proposal paragraphs — which carry no AD number to narrow
+on — is what grew it. Both still sit inside the 100 ms target.
 
 API spend to date: **$1.98** across 7,058 recorded calls, against a $50 budget.
 Bulk extraction runs on Haiku 5.5 through the Batch API at half price and
-accounts for $0.93 of that — 6,431 calls over the 25,687-paragraph corpus, an
-average of **$0.0000363 per paragraph**. That is an average over the corpus,
+accounts for $0.93 of that — 6,431 calls over the 25,687 adopted-AD paragraphs,
+an average of **$0.0000363 per paragraph**. That is an average over the corpus,
 not a per-call price: only applicability, compliance and required-action
 paragraphs get a pass. The rest is query-time answers and the two eval arms,
 each of which pays for a Sonnet answer per question.
@@ -107,6 +141,49 @@ we do not hold, so we refuse that part and name the bulletin.
 | `NO_EVIDENCE` | Nothing retrieved above threshold | Outside the corpus |
 | `OUT_OF_SCOPE` | Not an AD question | — |
 | `SUPERSEDED` | Older revision asked about — **still answers**, with a banner | Read the current one |
+
+## What a citation carries
+
+Every citation has two halves, and it needs both.
+
+**The anchor is provable.** A citation id is
+`{document_id}#{label}@{char_start}-{char_end}`. The offsets are computed by
+`str.find` in `engine/api/answer.py` — the answer writer is never asked for a
+number, it is asked to quote — and `engine/verify/verifier.py` re-checks that
+the text at that span is the quote, character for character. A quote that is
+not there yields no citation and the sentence is dropped.
+
+**The reference is findable.** An anchor like `2026-21864#(g)@4120-4193` cannot
+be taken to a paper copy of the Federal Register, so `engine/api/citations.py`
+puts the reference beside it:
+
+> **2026-21-12 · 91 FR 67442 · pp. 67442–67445 · ¶(g) REQUIRED_ACTIONS · in force**
+
+For a proposal the handle is the challenge index's `record_id` instead of an AD
+number, and the stage word is **proposal**:
+
+> **NPRM-001 · 91 FR 66019 · pp. 66019–66022 · ¶(c) APPLICABILITY · proposal**
+> *a proposal open for comment — not a requirement, and nothing to comply with*
+
+Three rules hold:
+
+- **Every rendered citation shows its `document_stage`** — on the pill itself,
+  not in a tooltip. `HumanReference` cannot be constructed without a contract
+  stage, so a stage-less citation cannot reach a renderer. An NPRM citation
+  reads as a proposal everywhere it appears.
+- **No page number is ever invented.** `fr_citation`, `start_page` and
+  `end_page` are copied from the Federal Register index, and
+  `engine/ingest/emit.py` refuses a `Revision` whose `start_page` is not the
+  page its own citation names, or that has a page with no citation beside it.
+  There is no node shape in which a made-up page can be written. A proposal's
+  pages come from the same index, joined on its `fr_document_number`, so the
+  rubric's `91 FR 66019` is the register's own string and not a parse of the
+  spreadsheet's prose.
+- **An absent field says so.** A document whose pages we do not hold renders
+  `page range not recorded` and is named in the envelope's `limitations` as a
+  citation that can be checked against the indexed text but not a printed page.
+  The NPRM spreadsheet's own citation column is free prose in 233 distinct
+  shapes; it is shown verbatim and never parsed into a citation.
 
 ## The contract
 
@@ -162,7 +239,7 @@ writer. Without one the engine runs offline and marks what it cannot extract as
 
 ## Honest status
 
-Built, tested and running end to end (`make verify` → 339 passed; `make demo`
+Built, tested and running end to end (`make verify` → 488 passed; `make demo`
 walks it): the contract and its gate, ingest and the knowledge graph, the real
 fleet layer, hybrid retrieval with measured latency, the rules engine wired
 into the live gate, the answer writer and verifier, the refusal layer, the
@@ -170,9 +247,10 @@ answer envelope, reference traversal and dependency expansion, the SSE
 backend, and the UI against that live backend (tsc clean, `pnpm build` passes,
 zero console errors on a live run).
 
-The corpus is the full window: **2,161 revisions / 2,117 ADs / 25,687
-paragraphs**, plus 431 NPRM rows. Retrieval still measures p95 39 ms against a
-100 ms target at that size.
+The corpus is the full window: **2,161 revisions / 2,117 ADs / 431 proposals /
+28,735 paragraphs / 8,363 distinct Federal Register pages** (7,081 adopted +
+1,282 proposed). Retrieval still measures p95 63–66 ms against a 100 ms target
+at that size.
 
 Not finished, stated plainly:
 
@@ -192,6 +270,14 @@ Not finished, stated plainly:
 - **The engine has no channel to accept a missing value.** `NEED_CONFIG` names
   the field an engineer could supply in seconds, but `/stream` takes only `q`
   and `tail_number`, so supplying it cannot re-run the decision yet.
+- **A proposal's reference depends on resolving it to a Federal Register
+  document.** All 431 do today, so every proposal carries `91 FR 66019` and
+  `66019-66022` from the register's own fields. A row that stopped resolving
+  would fall back to the spreadsheet's prose citation, shown verbatim, and
+  report its page range as `not recorded` — visibly degraded rather than
+  guessed, but degraded. The challenge index's own page column is never parsed:
+  it writes four different shapes (`66019-66022`, `Pages 45118-45119`,
+  `Page 6708`, `14293)`) and 200 of its 431 cells are not two integers.
 
 See [`docs/positioning.md`](docs/positioning.md) for how this compares to
 regulatory portals, OEM documentation platforms and existing AI reference tools.

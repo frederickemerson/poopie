@@ -10,9 +10,22 @@ Two verified constraints shape this module:
 * ``conditions[docket_id]`` is supported and returns every document filed under a
   docket regardless of publication date, which is how final rules for the
   spreadsheet's older dockets are found.
+* ``conditions[type][]=PRORULE`` returns proposed rules through the same index.
+  Measured 2001..2026 the largest FAA year is 620 documents with no term filter,
+  so a proposal year never overflows ``per_page`` and needs no month split; the
+  method raises rather than truncate if that ever changes. An NPRM is an
+  ordinary Federal Register document: same index fields, same
+  ``full_text_xml_url``.
+* ``conditions[term]`` is a full-text filter and it is LOSSY on this corpus.
+  "airworthiness directives" dropped 05-5707, an AD proposal titled
+  "Airworthiness Directives; GROB-WERKE Model G120A Airplanes", from the 2005
+  proposal index. It is kept for the final-rule harvest, where the window would
+  otherwise overflow, and omitted for proposals, where it is not needed.
 
-Every document XML is cached under ``data/raw/fr_ad/<document_number>.xml`` and
-never re-downloaded.
+Document XML is cached under ``<cache_dir>/<document_number>.xml`` and never
+re-downloaded. Final rules live in ``data/raw/fr_ad``; proposals live in
+``data/raw/fr_nprm``, kept apart so a provenance sweep over the adopted corpus
+cannot confuse the two.
 """
 
 from __future__ import annotations
@@ -51,6 +64,9 @@ INDEX_FIELDS = (
     "end_page",
     "full_text_xml_url",
     "html_url",
+    # A proposal's comment deadline. The challenge index dropped its
+    # Comments Due Date column, so this is where that date comes from now.
+    "comments_close_on",
 )
 
 
@@ -115,11 +131,16 @@ class FederalRegisterClient:
         path.write_text(json.dumps(payload), encoding="utf-8")
         return payload
 
-    def _rule_window(self, gte: str, lte: str, term: str) -> list[tuple[str, str]]:
+    def _rule_window(
+        self, gte: str, lte: str, term: str | None, doc_type: str = "RULE"
+    ) -> list[tuple[str, str]]:
         params = [
             ("conditions[agencies][]", "federal-aviation-administration"),
-            ("conditions[type][]", "RULE"),
-            ("conditions[term]", term),
+            ("conditions[type][]", doc_type),
+        ]
+        if term:
+            params.append(("conditions[term]", term))
+        params += [
             ("conditions[publication_date][gte]", gte),
             ("conditions[publication_date][lte]", lte),
             ("per_page", str(MAX_PER_PAGE)),
@@ -166,6 +187,40 @@ class FederalRegisterClient:
                     raise FederalRegisterError(f"month window {first}..{last} still overflows")
                 yield from results
 
+    def proposed_rules_between(
+        self, gte: str, lte: str, term: str | None = None
+    ) -> Iterator[dict]:
+        """Yield every FAA proposed rule published in [gte, lte].
+
+        Separate from :meth:`final_rules_between` rather than a flag on it, so
+        the final-rule cache filenames (``rules_<gte>_<lte>.json``, already on
+        disk) keep their meaning and a proposal can never be mistaken for an
+        adopted rule by a caller that forgot to read a parameter. ``term``
+        defaults to no text filter; see the lossiness note in the module
+        docstring.
+        """
+        name = f"prorules_{term or 'all'}_{gte}_{lte}"
+        payload = self._cached_json(name, self._rule_window(gte, lte, term, "PRORULE"))
+        results = payload.get("results") or []
+        count = payload.get("count") or 0
+        if count > len(results):
+            raise FederalRegisterError(
+                f"proposal window {gte}..{lte} reports {count} documents but returned "
+                f"{len(results)}; split it by month"
+            )
+        yield from results
+
+    def document(self, document_number: str) -> dict:
+        """The index record of one document, by number. Cached like a window."""
+        params = [("per_page", "1"), ("page", "1"), ("conditions[term]", document_number)]
+        params += [("fields[]", f) for f in INDEX_FIELDS]
+        safe = document_number.replace("/", "_")
+        payload = self._cached_json(f"document_{safe}", params)
+        for record in payload.get("results") or []:
+            if record.get("document_number") == document_number:
+                return record
+        return {}
+
     def documents_for_docket(self, docket_id: str) -> list[dict]:
         """Every document filed under one docket, any publication date."""
         params = [
@@ -181,7 +236,13 @@ class FederalRegisterClient:
 
     # ------------------------------------------------------------------ xml
 
-    def prefetch_xml(self, wanted: list[tuple[str, str]], workers: int = 6) -> None:
+    def prefetch_xml(
+        self,
+        wanted: list[tuple[str, str]],
+        workers: int = 6,
+        *,
+        cache_dir: Path | None = None,
+    ) -> None:
         """Download the missing XML of many documents at once.
 
         A few thousand sequential round trips to a public API is 20 minutes of
@@ -189,19 +250,28 @@ class FederalRegisterClient:
         per-request delay) and finishes in a couple of minutes. Already cached
         documents are not requested at all.
         """
+        directory = cache_dir or FR_XML_CACHE
         missing = [
             (number, url)
             for number, url in wanted
-            if url and not (FR_XML_CACHE / f"{number}.xml").exists()
+            if url and not (directory / f"{number}.xml").exists()
         ]
         if not missing or self.offline:
             return
         with futures.ThreadPoolExecutor(max_workers=workers) as pool:
-            list(pool.map(lambda item: self.document_xml(*item), missing))
+            list(
+                pool.map(
+                    lambda item: self.document_xml(*item, cache_dir=directory), missing
+                )
+            )
 
-    def document_xml(self, document_number: str, url: str) -> Path | None:
+    def document_xml(
+        self, document_number: str, url: str, *, cache_dir: Path | None = None
+    ) -> Path | None:
         """Return the cached XML path, downloading once if needed."""
-        path = FR_XML_CACHE / f"{document_number}.xml"
+        directory = cache_dir or FR_XML_CACHE
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{document_number}.xml"
         if path.exists() and path.stat().st_size > 0:
             self.stats.xml_cache_hits += 1
             return path

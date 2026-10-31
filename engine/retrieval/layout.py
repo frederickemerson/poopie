@@ -30,6 +30,15 @@ NODES_JSONL = BUILD / "nodes.jsonl"
 EDGES_JSONL = BUILD / "edges.jsonl"
 PARAGRAPHS_JSONL = BUILD / "paragraphs.jsonl"
 REVISION_TEXT_JSONL = BUILD / "revision_text.jsonl"
+#: Proposals, in their own files. Optional: a build that did not harvest them
+#: is a smaller corpus, not a broken one, so a missing file is not an error
+#: here the way a missing paragraphs.jsonl is.
+NPRM_PARAGRAPHS_JSONL = BUILD / "nprm_paragraphs.jsonl"
+NPRM_TEXT_JSONL = BUILD / "nprm_text.jsonl"
+#: Extracted applicability rules. A separate producer writes these
+#: (``engine.rules``), so they are a separate, optional file -- but they are
+#: graph nodes and the graph filter cannot narrow by model without them.
+RULES_JSONL = BUILD / "rules.jsonl"
 
 # --- the dev fixture corpus (this layer owns these) ------------------------
 FIXTURE_NODES_JSONL = BUILD / "retrieval_fixture_nodes.jsonl"
@@ -67,13 +76,23 @@ def require(path: Path, produced_by: str) -> Path:
 
 @dataclass(frozen=True)
 class CorpusPaths:
-    """One coherent set of corpus files, with the name of the set it came from."""
+    """One coherent set of corpus files, with the name of the set it came from.
+
+    ``nprm_paragraphs`` and ``nprm_text`` are optional (``None`` for a set that
+    has none, and simply absent from disk for a build that did not harvest
+    proposals). They are separate paths rather than extra lines in
+    ``paragraphs`` so that a reader of the citable corpus cannot pick up a
+    proposal without naming it.
+    """
 
     kind: str
     paragraphs: Path
     nodes: Path
     edges: Path
     revision_text: Path
+    nprm_paragraphs: Path | None = None
+    nprm_text: Path | None = None
+    rules: Path | None = None
 
 
 FIXTURE_PATHS = CorpusPaths(
@@ -90,6 +109,9 @@ BUILD_PATHS = CorpusPaths(
     nodes=NODES_JSONL,
     edges=EDGES_JSONL,
     revision_text=REVISION_TEXT_JSONL,
+    nprm_paragraphs=NPRM_PARAGRAPHS_JSONL,
+    nprm_text=NPRM_TEXT_JSONL,
+    rules=RULES_JSONL,
 )
 
 

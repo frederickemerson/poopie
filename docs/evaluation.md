@@ -39,7 +39,7 @@ python3 -m eval.run --arm both                 # ~5 min; re-runs hit the LLM cac
 
 The baseline is a strawman on purpose, but it has to be an honest one, so it differs from
 the engine *only* by the missing machinery. In particular it calls the engine's own writer
-rather than a copy of it: `tests/test_eval.py` pins
+rather than a copy of it: `tests/test_eval_run.py` pins
 `eval.baseline.write_answer is engine.api.answer.write_answer`. Two writers, or two
 prompts, would let any difference in the numbers be a difference in prompting instead of a
 difference in architecture, and the comparison would be worth nothing.
@@ -79,6 +79,7 @@ consumes — and every recorded field comes off its contract-pinned SSE events:
 
 | record field | source |
 |---|---|
+| `cost_usd`, `model_calls`, `cached_calls` | the ledger rows this turn appended |
 | `retrieved_paragraph_ids`, `retrieved_ad_numbers` | `retrieval` |
 | `decision`, `decision_available`, `decision_unavailable_reason` | `decision` |
 | `sentences[].text`, `.citation_ids` | `answer_delta` |
@@ -86,7 +87,6 @@ consumes — and every recorded field comes off its contract-pinned SSE events:
 | `refusal_codes`, `refusal_details` | `refusal` |
 | `answered`, `answer_status` | `done.envelope.answer_status` |
 | `stage_ms`, `total_ms` | `done.stage_timings`, `done.total_ms` |
-| `cost_usd` | the `CostLedger` delta across the turn |
 
 The harness decides nothing about the engine's behaviour; it records it. `answered` in
 particular is the engine's own `answer_status`, not something the eval re-derives, so the
@@ -104,6 +104,13 @@ Two measurement details:
 - **Warm-up is excluded.** The first call into `sentence-transformers` pays a one-off model
   load of seconds. `eval.run.warm_up` pays it before any timing is taken, and the report
   states what it cost, so the retrieval percentiles are not a measurement of a model loader.
+- **A cached call is not a latency.** Every run records how many model calls it made and
+  how many the content-hash cache served. A stage whose clock is a model call
+  (`query_plan`, `answer`, and the `total` containing them) is reported only from runs that
+  made at least one fresh call; otherwise it reads `n/a` with the reason. Without that
+  rule a cache-served re-run would publish a 1 ms answer stage, and a call the budget
+  refused would publish a 19 ms one. The local stages never call a model and stand either
+  way.
 - **Percentiles are nearest-rank** (`eval.metrics._percentile`): no interpolation, so every
   latency printed is one that was really observed. Each cell carries its own `n`, which
   differs per stage because stages that only run on the answer path have fewer observations.
@@ -162,19 +169,146 @@ number and then reported as if it had been held out.
 
 ## 5. Results
 
-See `eval/results/report.md` for the generated tables, the per-code refusal recall, the
-outcome histogram, the per-stage latencies and the full failure gallery. The summary and
-the analysis of the failures are in the sections below.
+One run of 51 questions through both arms, on the 25,687-paragraph corpus (2,117 ADs;
+2,151 of 2,161 revisions carry extracted rules). `eval/results/report.md` carries the
+generated tables, the outcome histogram, the per-stage latencies and the full gallery;
+`metrics.json` carries the same numbers as data. Sample sizes are in every cell because
+with 51 questions they are the difference between a result and an anecdote.
+
+| metric | ours | baseline |
+|---|---|---|
+| **`wrong_answer_rate`** | **8/31 (25.8%)** | **21/21 (100.0%)** |
+| `refusal_recall` | 8/31 (25.8%) | 0/21 (0.0%) |
+| `false_refusal_rate` | 14/20 (70.0%) | 0/20 (0.0%) |
+| `target_ad_recall` | 36/36 (100.0%) | 0/36 (0.0%) |
+| `citation_precision` | 80/80 (100.0%) | 34/34 (100.0%) |
+| `citation_coverage` | 79/79 (100.0%) | 34/56 (60.7%) |
+| `applicability_accuracy` | 6/6 (100.0%) [10 excluded] | n/a (no decision was available for any of the 10 labelled questions) |
+
+Refusal recall per code, because the codes are not interchangeable:
+
+| expected code | ours | baseline |
+|---|---|---|
+| `EXTERNAL_SOURCE_REQUIRED` | 0/10 (0.0%) | 0/10 (0.0%) |
+| `NEED_CONFIG` | 4/11 (36.4%) | 0/1 (0.0%) |
+| `NO_EVIDENCE` | 3/3 (100.0%) | 0/3 (0.0%) |
+| `OUT_OF_SCOPE` | 1/7 (14.3%) | 0/7 (0.0%) |
+
+**What the engine buys.** On the 31 questions where the honest answer is a refusal, the
+baseline answered confidently every single time it could be funded (21/21) and the engine
+did so 8 times out of 31. Both arms use the same model and the same writer prompt, so that
+gap is the machinery, not the prompt. The sharpest number is `target_ad_recall`: asked
+*"what is the unsafe condition addressed by AD 2001-25-05?"*, cosine-only top-8 retrieval
+over 25,687 paragraphs retrieved the named AD **0 times out of 36**, while the
+graph-filtered arm retrieved it 36/36. Embeddings do not encode a docket number, so the
+baseline returns paragraphs that are *about* unsafe conditions — and the same few ADs
+recur across unrelated questions. Every citation it then produces is real and resolvable
+(34/34): it is citing the wrong directive correctly, which is the failure mode that reads
+best and misleads hardest. The engine's advantage here is not a better model, it is
+knowing the question names an entity and filtering candidates to it.
+
+**What it costs.** `false_refusal_rate` is 14/20 (70.0%) — worse than either earlier pass,
+and the most important negative number in this document. 12 of those 14 came from the
+citation verifier, not the refusal gate, and **7 of the 12 had already verified a cited
+sentence** and threw it away: the kept fraction was 1 of 2 or 1 of 3 drafted sentences,
+below `MIN_KEPT_FRACTION = 0.60`, so a partly-supported answer became a flat
+`NO_EVIDENCE`. Across the arm, 41 of 79 drafted sentences survived verification, dropped
+for `numeric_term_absent_from_cited_span` (19) and `term_coverage_below_threshold` (21).
+This is the pair of numbers `engine/verify/thresholds.py` asked for, at the untuned
+defaults, and it says the kept-fraction rule is far too blunt for short answers: one
+dropped sentence out of two flips a correct, citable answer into a refusal. Nothing was
+re-tuned to improve the table — fixing it is the next change, and it needs a fresh
+measurement afterwards, not this one.
+
+**Latency is not in the table above.** `eval/results/report.md` reports every
+model-backed stage as `n/a (cache-served: no fresh model call to time)`, because the
+published run was re-rendered from the content-hash LLM cache, where an answer "takes"
+about a millisecond. `eval/metrics.py` drops those timings rather than print them. The
+local stages are real: retrieval p50 21 ms / p95 67 ms for the engine (the graph filter
+plus the keyword arm plus fusion) against 11 ms / 15 ms for cosine-only. The one cold pass
+whose wall clock measured fresh model calls ran the earlier 49-question set, and recorded
+`answer` p50 2684 ms / p95 5949 ms and end-to-end p50 2874 ms / p95 7060 ms for the engine,
+against `answer` p50 1991 ms / p95 5441 ms and end-to-end p50 2043 ms / p95 5453 ms for the
+baseline — so the machinery costs roughly 0.8 s per question, nearly all of it the Haiku
+query plan. Those four numbers are **not** recomputable from the published `runs.jsonl`:
+the cold records were overwritten by the warm re-render before being copied, and the
+budget was then exhausted, so they cannot be re-measured. They are quoted here with that
+provenance rather than left out or silently refreshed from a cached run.
+
+### Failure gallery: the three that matter
+
+`eval/results/report.md` lists all 37 of the engine's failures. These are the three
+patterns behind them.
+
+**1. "Does this AD apply to my aircraft?" is answered instead of refused — 7 of the 8
+wrong answers.** `trap-01` … `trap-07` all ask that question with no aircraft named, about
+ADs whose applicability is delegated to an external document (an EASA AD, a Transport
+Canada AD, a manufacturer's requirements bulletin). Expected: `EXTERNAL_SOURCE_REQUIRED`.
+Recall for that code is **0/10**. The root cause is a sequencing bug, not a missing rule:
+the rules engine returns no decision at all ("No specific aircraft identified. Applicability
+needs a tail number or serial number"), the refusal gate therefore never sees a decision to
+reason about, and the writer answers from the applicability paragraph. So `trap-01` replies
+with the AS350/AS355 model list and `trap-05` with *"the AD's stated applicability is by
+reference to a Boeing requirements bulletin, Issue 002 dated November 25, 2024"* — both
+true sentences about the *document*, offered as answers to a question about an *aircraft*.
+Whether a revision delegates its applicability is a property of the revision, knowable with
+zero aircraft information; it has to be checked before the aircraft resolves, not after.
+This is the worst failure in the set: it is the product's core question, and the answer is
+fluent, cited and wrong.
+
+**2. Right instinct, wrong code — 15 refusals.** The engine withheld an answer but named
+the wrong blocker: `NEED_CONFIG` → `NO_EVIDENCE` (5), `OUT_OF_SCOPE` → `NO_EVIDENCE` (4),
+`EXTERNAL_SOURCE_REQUIRED` → `NO_EVIDENCE` (3), `NEED_CONFIG` → `CANNOT_DETERMINE` (2),
+and one `OUT_OF_SCOPE` answered with `SUPERSEDED` + `NO_EVIDENCE`. 23 of the engine's 38
+refusals carried `NO_EVIDENCE` from the verifier, which is the code that means *the corpus
+does not contain this*. For a question like *"how do I file a service difficulty report?"*
+(`OUT_OF_SCOPE`) or an under-specified one (`NEED_CONFIG`) that is a false statement about
+the corpus, and per `docs/refusals.md` it sends the user to the wrong remedy: hunting for a
+document instead of supplying a tail number or asking somewhere else. `NO_EVIDENCE` is
+acting as a catch-all, and the verifier can only ever produce that one code — the
+information needed to pick a better one exists upstream, at the gate.
+
+**3. Verified answers discarded — 14 false refusals, 12 from the verifier.** `ans-02`,
+`ans-05`, `ans-09`, `ans-12`, `rev-02`, `rev-07` each kept exactly one verified, cited
+sentence and still returned `NO_EVIDENCE`, because one dropped sentence out of two or three
+put them under `MIN_KEPT_FRACTION`. `rev-03` and `rev-04` never drafted anything: the gate
+refused on the `NO_EVIDENCE_COSINE_MIN = 0.30` cosine floor although retrieval had the
+right AD in hand (`target_ad_recall` is 36/36). A system that verifies a sentence and then
+withholds it is strictly worse than one that shows the verified sentence and marks what it
+dropped, and the fix is in the gate's arithmetic rather than in the model.
 
 ## 6. What this evaluation cannot tell you
 
 - **Small samples.** Tens of questions per class, not hundreds. Every rate is an order of
   magnitude, not a point estimate, and no confidence interval is reported because with
   these denominators it would be wider than the differences it bracketed.
+- **Ten of the baseline's 51 runs were never funded.** The project ledger reached $1.9809
+  of its $2.00 cap during the run, so the writer call for `cfg-01`…`cfg-06` and
+  `amb-02`…`amb-05` was refused by the budget. Those runs are recorded as errors and
+  excluded from every rate except `target_ad_recall`, which measures retrieval and
+  therefore still counts them — which is why the baseline's `wrong_answer_rate`
+  denominator is 21 where the engine's is 31. The budget is now spent, so this cannot be
+  completed without raising the cap.
+- **The configuration changed under the harness.** An earlier pass of this same code
+  measured the engine when only 29 of 2,161 revisions carried extracted rules; rule
+  extraction finished mid-task and the published run has 2,151. The question set is
+  generated from the graph, so it grew from 49 questions to 51 at the same time. Numbers
+  from the earlier passes are not comparable and are not reported here, except for the
+  four latency figures in §5 that are labelled with that provenance.
+- **One question is duplicated.** `trap-05` and `trap-06` are both "Does AD 2026-20-10
+  apply to my aircraft?", so the 10 `EXTERNAL_SOURCE_REQUIRED` cases cover 9 distinct
+  questions. The duplicate is counted, not dropped, and both runs failed the same way.
 - **One run, and the writer is not deterministic.** The client does not pin a temperature,
   so a fresh run can draft different sentences. The content-hash cache makes a *repeat* of
   the same run reproducible, but this is a single sample per question and the harness
   reports no variance. A second independent sample would be the honest next step.
+- **A repeat is reproducible but not re-measured.** Re-running `eval.run` after a pass
+  replays the cache: the verdicts are identical and free, which is how the published
+  report was re-rendered, but no model stage is timed again. `eval/metrics.py` treats a
+  model-stage timing as admissible only from a run that made a fresh call, so after a
+  warm re-render the latency table says `n/a` rather than claiming a 1 ms answer. That
+  check cannot recover a wall clock that was never recorded: the only cold timings this
+  project has are the four quoted in §5.
 - **No model judges the prose.** `answer_correctness` from the contract's `eval_metrics` is
   not implemented here: scoring whether a sentence truly answers the question needs either
   hand labels for every answer or an LLM judge, and an LLM judge would reintroduce exactly

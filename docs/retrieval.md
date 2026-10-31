@@ -127,6 +127,14 @@ Each `Hit` carries everything a citation needs: `paragraph_id`, `revision_id`, t
 heading and role, `char_start`/`char_end`, both arm ranks, the raw dense cosine, and
 `citation_id = {paragraph_id}@{char_start}-{char_end}`.
 
+On the way out, `engine/api/server.py` attaches a `human_reference` to each
+paragraph in the `retrieval` payload — the AD number or `record_id`, the
+Federal Register citation, the page range, the paragraph label and role, and
+the `document_stage`. It rides inside each paragraph rather than as a new
+top-level payload key, because the contract pins `retrieval` to exactly
+`paragraphs`, `scores` and `stage_ms`, and because that is where the UI
+resolves a citation. See [`citations.md`](citations.md).
+
 ### Why the fused score is not the evidence signal
 
 RRF saturates: it reaches its maximum whenever both arms agree on a top-1, however
@@ -275,21 +283,69 @@ Rules for how refusals are built (`refusals.py`):
 
 ## Latency
 
-Re-measured on the full corpus (25,687 paragraphs across 2,117 ADs), 585 warm
-samples over 39 corpus-generated queries, via
-`python3 -m engine.retrieval.latency_bench`:
+### The corpus these numbers belong to
+
+A latency figure without a corpus size is not a measurement, so the size is
+stated first and the bench prints it beside every result.
+
+| | |
+|---|---|
+| Federal Register documents indexed | 2,161 adopted ADs + 431 proposals = 2,592 |
+| ADs | 2,117 |
+| Paragraphs indexed | 25,687 adopted + 3,048 proposed = **28,735** |
+| Distinct Federal Register pages, adopted ADs | 7,081 |
+| Distinct Federal Register pages, proposals | 1,282 |
+| **Total distinct Federal Register pages** | **8,363** |
+
+The page count is `start_page`/`end_page` as the Federal Register index gave
+them, counted as distinct `(volume, page)` pairs. Reproduce with
+`python3 -m engine.api.citations` (from the built nodes) or
+`python3 -m engine.api.citations --from-index` (from the cached index
+responses the ingest copies those fields from). The two must agree; see
+`docs/citations.md` for the arithmetic.
+
+### The stages
+
+Re-measured on that corpus, 585 warm samples over 39 corpus-generated queries
+(15 repeats each), via `python3 -m engine.retrieval.latency_bench`:
 
 | Stage | p50 | p95 | Target |
 |---|---|---|---|
-| Entity pass | 0.07 ms | 0.13 ms | 5 ms |
-| Retrieval (filter + both arms + fusion) | 28.42 ms | 39.25 ms | 100 ms |
+| Entity pass | 0.07 ms | 0.09–0.11 ms | 5 ms |
+| Retrieval (filter + both arms + fusion) | 23.2–25.1 ms | 62.2–66.5 ms | 100 ms |
+| Whole query, model calls included | not claimed | not claimed | 3,000 ms |
+
+A range is quoted rather than one run's decimals, because the spread between
+runs is larger than the decimals. Nine runs on this build — eight of them here,
+one by a second process measuring the same index independently — gave retrieval
+p50 23.19, 23.22, 23.46, 23.78, 23.90, 24.09, 25.09 and 25.09 ms, and p95
+62.20, 62.97, 63.05, 64.65, 65.56, 65.76, 66.08, 66.20 and 66.46 ms. A tenth
+run, overlapping a dev server rebuild, gave p50 31.68 ms; it is named here
+rather than dropped, since a contended run is the ordinary case for a laptop.
+Index load was 0.63–0.69 s throughout.
+
+The contract's `total_p95` of 3,000 ms is the end-to-end target and is **not
+claimed in this table**. A whole query contains two network calls to Anthropic
+(the Haiku query plan and the Sonnet answer writer), and their latency is not
+this engine's to promise. Everything the engine is responsible for — entity
+pass, retrieval, the rules engine, the verifier — contains no model call and
+lands in tens of milliseconds, which is what leaves the 3-second budget
+essentially whole for the two model calls.
 
 The earlier figures in this section (0.04/0.13 ms and 11.96/47.64 ms) were taken
 when the corpus was 353 paragraphs, and the corpus was indeed not recorded with
 them — which is why the bench now prints the paragraph and AD count beside every
-result. Growing the corpus 73x moved retrieval p50 from 11.96 ms to 28.42 ms and
-left p95 lower than before, because the graph filter narrows to a single
-revision before either arm runs.
+result. Growing the corpus 81x, to 28,735 paragraphs, moved retrieval p50 from
+11.96 ms to about 24 ms and p95 from 47.64 ms to about 65 ms. The p50 holds up
+because the graph filter narrows to a single revision before either arm runs, so
+a query that names an AD never scans the corpus; the p95 is the tail of the
+queries that name no AD, and that tail is what grew. Both still sit inside the
+100 ms target, the p95 with a third of the budget spare.
+
+An intermediate measurement of 30.06/38.10 ms appeared here when the corpus was
+25,687 paragraphs and held adopted ADs only. Adding the 3,048 proposal
+paragraphs raised the p95, because a proposal carries no AD number for the graph
+filter to narrow on.
 
 The **first query pays a one-off cost of about 10 s** loading the embedding model
 (`embedder()` caches it per process). Any first-request SLA has to account for that
@@ -298,11 +354,12 @@ or warm the model at startup.
 An earlier spot-check on the 353-paragraph corpus, run while an extraction and a
 harvest were competing for the same CPU, reported retrieval p95 of 527 ms and
 attributed it to that contention without rerunning on a quiet machine. The
-attribution looks right: the same bench on a 73x larger corpus and a quiet
-machine gives p95 39.25 ms. Treat a p95 in the hundreds of milliseconds as a
+attribution looks right: the same bench on an 81x larger corpus and a quiet
+machine gives p95 62.2–66.5 ms. Treat a p95 in the hundreds of milliseconds as a
 signal that something else is running, not as the engine's cost.
 
-Index load is 0.5 s and the server pays it once at startup, so no query pays it.
+Index load is 0.63–0.69 s and the server pays it once at startup, so no query
+pays it.
 The embedding model itself is loaded lazily and cached per process
 (`embedder()`); a process that has never embedded anything pays several seconds
 on its first dense query, which is why the backend builds the index at startup

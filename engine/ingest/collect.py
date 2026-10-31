@@ -19,6 +19,8 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass, field
 
+from engine.graph.pages import page_number
+from engine.graph.pages import page_range as fr_page_range
 from engine.ingest.ad_xml import ParsedAD, parse_ad_xml
 from engine.ingest.docket_ids import DocketIds, parse_docket_ids
 from engine.ingest import provenance
@@ -49,13 +51,28 @@ class RevisionRecord:
     effective_on: dt.date | None
     full_text_xml_url: str | None
     title: str | None
+    #: Federal Register citation exactly as the index gives it, e.g. "91 FR 66019".
     citation: str | None
-    page_range: str | None
+    #: First and last Federal Register page, from the index's own start_page /
+    #: end_page integers. Never parsed out of the citation string or the prose.
+    start_page: int | None
+    end_page: int | None
     in_window: bool
     parsed: ParsedAD | None = None
     refs: RevisionRefs | None = None
     affected: AffectedADs | None = None
     provenance: provenance.Provenance | None = None
+
+    @property
+    def page_range(self) -> str | None:
+        """The page range as ``start-end``, or the start page alone when it is one page.
+
+        Derived, never stored: a stored copy could disagree with the integers
+        it came from, and the integers are the authoritative pair. Formatted by
+        ``engine.graph.pages``, which is the engine's only page formatter, so
+        the shape here cannot drift from the shape a citation renders.
+        """
+        return fr_page_range(self.start_page, self.end_page)
 
     @property
     def ad_number(self) -> str:
@@ -112,13 +129,6 @@ def _date(value: str | None) -> dt.date | None:
         return None
 
 
-def _page_range(document: dict) -> str | None:
-    start, end = document.get("start_page"), document.get("end_page")
-    if start and end:
-        return f"{start}-{end}"
-    return str(start) if start else None
-
-
 def _record(document: dict, in_window: bool) -> RevisionRecord:
     return RevisionRecord(
         revision_id=document["document_number"],
@@ -128,7 +138,8 @@ def _record(document: dict, in_window: bool) -> RevisionRecord:
         full_text_xml_url=document.get("full_text_xml_url"),
         title=document.get("title"),
         citation=document.get("citation"),
-        page_range=_page_range(document),
+        start_page=page_number(document.get("start_page")),
+        end_page=page_number(document.get("end_page")),
         in_window=in_window,
     )
 

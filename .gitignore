@@ -5,6 +5,7 @@ node_modules/
 .next/
 .venv/
 data/raw/fr_ad/*.xml
+data/raw/fr_nprm/*.xml
 data/raw/fleet/*.csv
 data/build/*.jsonl
 data/build/*.db

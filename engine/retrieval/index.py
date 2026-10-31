@@ -29,7 +29,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dataclass_field
 from pathlib import Path
 
 import numpy as np
@@ -110,10 +110,25 @@ class HybridIndex:
     corpus: Corpus
     embeddings: np.ndarray | None
     dense_model: str | None
+    #: Paragraphs per contract ``source_kind``, read from the index meta. Lets
+    #: a caller state what is in the index without walking the corpus.
+    source_kind_counts: dict[str, int] = dataclass_field(default_factory=dict)
 
     @property
     def dense_available(self) -> bool:
         return self.embeddings is not None
+
+    def rows_of_source_kinds(self, source_kinds: tuple[str, ...]) -> list[int]:
+        """Zero-based corpus rows of the paragraphs of these source kinds."""
+        if not source_kinds:
+            return []
+        placeholders = ",".join("?" * len(source_kinds))
+        rows = self.db.execute(
+            f"SELECT rowid_ FROM ids WHERE source_kind IN ({placeholders}) "
+            f"ORDER BY rowid_",
+            list(source_kinds),
+        ).fetchall()
+        return [int(r["rowid_"]) - 1 for r in rows]
 
     def close(self) -> None:
         self.db.close()
@@ -147,15 +162,35 @@ def build_index(
                 f"CREATE VIRTUAL TABLE paragraphs USING fts5("
                 f"body, tokenize=\"{_FTS_TOKENIZE}\")"
             )
-            db.execute("CREATE TABLE ids (rowid_ INTEGER PRIMARY KEY, paragraph_id TEXT)")
+            # source_kind and document_stage are stored beside the id so a
+            # caller can restrict or label a keyword hit without loading the
+            # whole corpus, and so the index cannot describe a paragraph
+            # without saying what kind of document it came from.
+            db.execute(
+                "CREATE TABLE ids ("
+                "rowid_ INTEGER PRIMARY KEY, paragraph_id TEXT, "
+                "document_id TEXT, source_kind TEXT NOT NULL, "
+                "document_stage TEXT NOT NULL)"
+            )
+            db.execute("CREATE INDEX ids_source_kind ON ids(source_kind)")
             db.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
             db.executemany(
                 "INSERT INTO paragraphs(rowid, body) VALUES (?, ?)",
                 [(i + 1, _indexed_text(p)) for i, p in enumerate(corpus.paragraphs)],
             )
             db.executemany(
-                "INSERT INTO ids(rowid_, paragraph_id) VALUES (?, ?)",
-                [(i + 1, p.paragraph_id) for i, p in enumerate(corpus.paragraphs)],
+                "INSERT INTO ids(rowid_, paragraph_id, document_id, source_kind, "
+                "document_stage) VALUES (?, ?, ?, ?, ?)",
+                [
+                    (
+                        i + 1,
+                        p.paragraph_id,
+                        p.document_id,
+                        p.source_kind,
+                        p.document_stage,
+                    )
+                    for i, p in enumerate(corpus.paragraphs)
+                ],
             )
 
         dense_model: str | None = None
@@ -184,6 +219,10 @@ def build_index(
                     ("corpus_kind", corpus.kind),
                     ("dense_model", json.dumps(dense_model)),
                     ("dense_dim", str(EMBEDDING_DIM if dense else 0)),
+                    (
+                        "source_kind_counts",
+                        json.dumps(corpus.counts_by_source_kind(), sort_keys=True),
+                    ),
                 ],
             )
     finally:
@@ -192,6 +231,7 @@ def build_index(
 
     return {
         "paragraphs": len(corpus.paragraphs),
+        "by_source_kind": corpus.counts_by_source_kind(),
         "corpus_kind": corpus.kind,
         "fingerprint": corpus.fingerprint,
         "dense_model": dense_model,
@@ -222,6 +262,7 @@ def load_index(
         )
 
     dense_model = json.loads(meta.get("dense_model") or "null")
+    source_kind_counts = json.loads(meta.get("source_kind_counts") or "{}")
     embeddings: np.ndarray | None = None
     if dense_model:
         if not embeddings_path.exists():
@@ -238,7 +279,11 @@ def load_index(
                 f"{embeddings_path} has shape {embeddings.shape}, expected {expected}"
             )
     return HybridIndex(
-        db=db, corpus=corpus, embeddings=embeddings, dense_model=dense_model
+        db=db,
+        corpus=corpus,
+        embeddings=embeddings,
+        dense_model=dense_model,
+        source_kind_counts=source_kind_counts,
     )
 
 

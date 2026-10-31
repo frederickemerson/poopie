@@ -135,7 +135,8 @@ def _blank_record(question: Question, arm: str) -> dict[str, Any]:
         "retrieved_paragraph_ids": [], "retrieved_ad_numbers": [],
         "answered": False, "answer_status": None,
         "sentences": [], "citation_ids": [],
-        "stage_ms": {}, "total_ms": None, "cost_usd": 0.0, "error": None,
+        "stage_ms": {}, "total_ms": None, "error": None,
+        "cost_usd": 0.0, "model_calls": 0, "cached_calls": 0,
     }
 
 
@@ -171,12 +172,52 @@ def _sentence_rows(
     return rows
 
 
+def _ledger_rows_since(harness: "Harness", offset: int) -> tuple[int, list[dict[str, Any]]]:
+    """The ledger rows appended since ``offset``, and the new end offset.
+
+    The ledger is append-only, so reading from a byte offset gives this turn's
+    calls exactly -- cost *and* whether each one was served from the content-hash
+    cache. The cache flag matters as much as the cost: a cached call returns in
+    about a millisecond, so a run containing one has not measured what the model
+    stages really take, and ``eval.metrics`` drops its model timings rather than
+    publish a cache hit as a latency.
+    """
+    path = harness.ledger.path
+    if not path.exists():
+        return offset, []
+    size = path.stat().st_size
+    if size <= offset:
+        return size, []
+    with path.open(encoding="utf-8") as fh:
+        fh.seek(offset)
+        blob = fh.read()
+    rows: list[dict[str, Any]] = []
+    for line in blob.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            # A torn final line is a ledger-writing artefact, not a call we can
+            # attribute. Skip it rather than guess at its cost or cache flag.
+            continue
+    return size, rows
+
+
+def _bill(record: dict[str, Any], rows: list[dict[str, Any]]) -> None:
+    """Attribute this turn's model calls to the record."""
+    record["cost_usd"] = round(sum(float(r.get("cost_usd") or 0.0) for r in rows), 6)
+    record["model_calls"] = len(rows)
+    record["cached_calls"] = sum(1 for r in rows if r.get("cached_hit"))
+
+
 def run_ours(question: Question, harness: Harness) -> dict[str, Any]:
     """Record one turn of the engine's own pipeline. Decides nothing itself."""
     record = _blank_record(question, "ours")
-    before = harness.ledger.spent_usd()
+    offset = harness.ledger.path.stat().st_size if harness.ledger.path.exists() else 0
     frames = list(events(server._stream(question.text, question.tail_number)))
-    record["cost_usd"] = round(harness.ledger.spent_usd() - before, 6)
+    _bill(record, _ledger_rows_since(harness, offset)[1])
     payloads = {name: payload for name, payload in frames}
     if "error" in payloads:
         record["error"] = str(payloads["error"].get("message"))
@@ -239,9 +280,9 @@ def run_ours(question: Question, harness: Harness) -> dict[str, Any]:
 def run_baseline_arm(question: Question, harness: Harness) -> dict[str, Any]:
     """Top-8 cosine, one answer from the engine's writer, no refusal path."""
     record = _blank_record(question, "baseline")
-    before = harness.ledger.spent_usd()
+    offset = harness.ledger.path.stat().st_size if harness.ledger.path.exists() else 0
     out = run_baseline(harness.index, harness.client, question.text)
-    record["cost_usd"] = round(harness.ledger.spent_usd() - before, 6)
+    _bill(record, _ledger_rows_since(harness, offset)[1])
     record["retrieved_paragraph_ids"] = [p.paragraph_id for p in out.passages]
     record["retrieved_ad_numbers"] = sorted({p.ad_number for p in out.passages if p.ad_number})
     # verification=None, not an empty verdict: this arm ran no verifier at all.

@@ -17,7 +17,9 @@ Where a count matters I say what it was measured over.
 | Source | Used for | Why it is the authority |
 |---|---|---|
 | **Federal Register API** (`federalregister.gov/api/v1`) | Every FAA final rule: document number, `docket_ids`, publication and effective dates, the full-text XML | It is the legal publication of the rule. The XML is the document of record; the index fields are the Register's own metadata. |
-| **NPRM spreadsheet** (`data/raw/AD Notice of Proposed Rulemaking (AD NPRM).xlsx`) | Proposed rules: docket, citation, comments-due date, make, model, summary | The only source of proposals in this project. 431 data rows, 22 columns, one sheet. Three columns (AC Reference, AIR Policy Reference, Additional Reference) are empty in every row and are not read. |
+| **NPRM spreadsheet** (`data/raw/AD Notice of Proposed Rulemaking (AD NPRM).xlsx`) | The FAA's own export of proposed rules: docket, citation, comments-due date, make, model, summary | 431 data rows, 22 columns, one sheet. Three columns (AC Reference, AIR Policy Reference, Additional Reference) are empty in every row and are not read. Read by `engine/ingest/nprm_xlsx.py`. |
+| **Challenge AD index** (`data/reference/challenge-4-ad-index.xlsx`, sheet `nprm_index`) | The same 431 proposals, re-exported by the challenge organizers with a stable `record_id`, a `federal_register_link` and four derived columns | It is the key the organizers publish and ask citations to name, so `record_id` is the `nprm_id` of every proposal node. Read by `engine/ingest/nprm_index_xlsx.py`, whose docstring records which FAA-export quirks still hold and which the organizers changed. Its `publish_date` column is one day early for 257 of the 431 rows and is therefore never used as a publication date. |
+| **Federal Register proposal XML** (`conditions[type][]=PRORULE`) | The full text of each proposal, as paragraphs with character offsets | Same authority as a final rule's XML, and the same `<HD SOURCE="HD1">` markup, so `ad_xml.py` parses it unchanged. The spreadsheet's summary column is a paraphrase; this is the document. |
 | **OpenSky aircraft database** (`data/raw/fleet/aircraftDatabase.csv`) | The demo fleet: registration, serial, model, typecode, operator | Real registrations and serial numbers. It has no equipment, modification, part-number or category column, which is why those rule fields can never be evaluated (see `docs/fleet.md`). |
 
 The fleet loader and selection rules are documented in `docs/fleet.md` and are not
@@ -34,10 +36,13 @@ FR index (per year, split by month on overflow) --> AD filter --> XML (cached)
       +--------------------------------------------------->  paragraphs + offsets
 NPRM xlsx --> rows, normalized dockets                               |
                                                                      v
-                                          refs (ForeignAD, ServiceBulletin), supersession
-                                                                     |
-                                                                     v
-                         nodes.jsonl / edges.jsonl / paragraphs.jsonl / sidecars
+challenge index --> rows --> resolve to an FR document --> PRORULE XML (cached)
+      |                                                              |
+      |                                                              v
+      |                              refs (ForeignAD, ServiceBulletin), supersession
+      |                                                              |
+      v                                                              v
+nodes.jsonl / edges.jsonl / paragraphs.jsonl / nprm_paragraphs.jsonl / sidecars
 ```
 
 Two passes build the final-rule set (`collect.py`):
@@ -189,38 +194,165 @@ because the contract's `Revision` node has no field for the text (the sidecar is
 An NPRM row and a final rule belong together when they share a docket id. Both
 sides are reduced to the same form (`FAA-YYYY-NNNN`, or the legacy directorate
 form) and joined through a `Docket` node: NPRM and AD both get an `IN_DOCKET` edge,
-and an AD gets a `PROPOSED_BY` edge to each NPRM on its docket.
+and an AD gets a `PROPOSED_BY` edge to each NPRM on its docket **that was published
+before the AD's earliest revision**. A shared docket alone is not enough: dockets
+are reused, and without the date guard the build emitted
+`AD 2009-17-05 (adopted 2009-08-17) PROPOSED_BY NPRM-268 (published 2011-07-28)`,
+a rule proposed two years after it was adopted. The guard uses the Federal
+Register's publication date, never the spreadsheet's `publish_date`. Edges rejected
+this way are listed in the ingest report as `proposed_by_skipped`.
 
-One node per spreadsheet **row**, not per docket. 99 of the distinct dockets appear
-on more than one row (re-notices and supplemental NPRMs, not duplicates), and the
-identity is docket plus Federal Register citation, which is unique across all 431
-rows (per `nprm_xlsx.py`, which I did not re-derive).
+One node per index **row**, not per docket. 99 of the distinct dockets appear on
+more than one row (re-notices and supplemental NPRMs, not duplicates), so the
+docket cannot be the key. The `nprm_id` is the challenge index's `record_id`
+(`NPRM-001`), for two reasons: it is the handle the organizers publish and ask
+citations to name, and it contains no `@`. A citation id is
+`{paragraph_id}@{char_start}-{char_end}` and is split on its **first** `@`, so an
+id built from docket and date — the earlier scheme — would have silently truncated
+every citation made to a proposal.
 
-**Only a minority of dockets join.** Measured on the current build, which covers the
-window `2026-10-01..2026-10-31`:
+**Only a minority of dockets join.** Measured on the current build
+(`--since 2021-01-01`, 2,161 revisions):
 
 | | Count |
 |---|---|
 | NPRM rows | 431 |
-| Unique dockets in the spreadsheet | 322 |
-| Dockets that also have a final rule in the build | 22 |
-| Dockets with no final rule in the build | 300 |
-| `PROPOSED_BY` edges | 22 |
-
-That 22 is for a one-month window only: the report shows
-`dockets_queried_outside_window: 0`, so the second pass (look up each spreadsheet
-docket) did not run for that build. The cached docket lookups tell a more useful
-story. At 12:15, `data/raw/fr_index/` held 288 `docket_*.json` responses, and **12
-of them contain a final rule naming an AD number** (3 more files had no `results`
-key and were not counted). So about 4% of looked-up dockets had a final rule in
-the Register. This is a harvest in progress; the denominator will grow to the full
-322.
+| Unique dockets in the index | 322 |
+| Dockets joined to a final rule | 42 |
+| Dockets with no final rule yet | 280 |
+| `PROPOSED_BY` edges emitted | 41 |
+| `PROPOSED_BY` edges rejected by the date guard | 1 |
 
 Why so few: the spreadsheet is a list of proposals, and most proposals have not
 become final rules yet. I have confirmed the low rate; I have **not** confirmed the
 explanation by dating the unjoined NPRMs, so treat "not yet final" as the likely
 cause rather than a measured one. A docket with no final rule is not an error and
 carries `has_final_rule: false`.
+
+---
+
+## Proposal full text: resolving 431 rows to Federal Register documents
+
+The spreadsheet's `summary` column is a paraphrase, roughly 150 pages in total. The
+documents behind it are the corpus. `engine/ingest/nprm_text.py` resolves each row
+of the challenge index to a Federal Register document and fetches its XML into
+`data/raw/fr_nprm/`.
+
+**The link column cannot carry this.** Of the 431 rows, 25 have no
+`federal_register_link` at all and 169 more hold prose instead of a URL, so only
+237 cells yield a document number (15 of those name two). The column is therefore a
+hint, not the key, and a missing link is not a fetch failure. Resolution tries three
+routes in order, and every row records which one answered in `resolved_via`:
+
+| Route | Rows | What it matches on |
+|---|---|---|
+| `link` | 234 | a document number parsed out of the cell, confirmed against the index |
+| `citation` | 195 | the Federal Register **start page**, within a ±7-day window of the sheet's date |
+| `docket_date` | 2 | the docket id plus the date window, when the page does not match |
+| `unresolved` | 0 | |
+
+**Why the page and not the date.** The first attempt used the sheet's `publish_date`
+as an equality test and resolved 174 of 431. The measured offset distribution is
+exactly `{0 days: 174, +1 day: 257}` — the sheet is one day early for every row
+before 2022 — so the date became a window and the start page became the identity.
+Pages run continuously through an annual volume, which makes `(volume, start page)`
+a unique address; where two notices begin on the same page, a tiebreak on docket
+agreement and end page picks one. Result: 431 resolved, 0 duplicates.
+
+**The proposals index must not be filtered by term.** `conditions[term]=airworthiness
+directives` is a lossy full-text filter: it drops `05-5707`, titled "Airworthiness
+Directives; GROB-WERKE Model G120A Airplanes", from the 2005 proposal index. The
+harvest asks for every `PRORULE` in a year instead (measured maximum 620, under the
+1000-row cap) and filters locally.
+
+### The markup is the same as a final rule's
+
+NPRM XML carries the same `<HD SOURCE="HD1">(c) Applicability</HD>` labelled
+headings as an adopted AD, so `parse_ad_xml` reads it unchanged and **no prose regex
+was added anywhere**. Of the 431 documents: 200 parse as `labelled_headings`, 97 as
+`inline_labels` (the legacy form, also already supported), and 134 contain no
+proposed text to section.
+
+Those 134 are not parse failures, and the ingest does not guess why they are empty:
+it groups them by the Federal Register's own `action` field, verbatim.
+
+| Federal Register action | Documents |
+|---|---|
+| Proposed rule; withdrawal. (3 spellings) | 124 |
+| Notice of proposed rulemaking (NPRM); withdrawal. | 4 |
+| Notice of proposed rulemaking (NPRM); extension of comment period. (2 spellings) | 3 |
+| Notice of public meeting; reopening of the comment periods. | 1 |
+| Notice of proposed rulemaking (NPRM). | 2 |
+
+A withdrawal has no proposed text by definition. The two genuine NPRMs in the last
+row are a known gap, recorded rather than papered over: `E8-18239` is a 14 CFR
+Part 61 rulemaking (Robinson training requirements) and not an AD proposal at all —
+it appears to be in the challenge index by mistake — and `04-28145` is a real AD
+proposal whose legacy inline labels sit outside the `EXTRACT` wrapper that
+`ad_xml.py` requires. Relaxing that wrapper would change how all 2,161 adopted
+revisions are parsed, which is the wrong blast radius for one document.
+
+### Proposals are a separate file, on purpose
+
+Proposal paragraphs are written to `data/build/nprm_paragraphs.jsonl`, never to
+`paragraphs.jsonl`. That is not tidiness: `paragraphs.jsonl` is the file the rules
+extractor reads, so the separation is what makes "no NPRM paragraph can supply an
+obligation or a deadline" a property of the file layout rather than a filter someone
+can forget. `engine/ingest/emit.py` refuses to route a paragraph by call order — it
+reads `source_kind` and raises `ContractViolation` on any incoherent parentage
+(both ids set, neither set, a proposal staged anything but `PROPOSED`, a revision
+staged `PROPOSED`, or a `paragraph_id` that is not `{document_id}#{label}`).
+
+### Pages
+
+| | Documents | Σ (end − start + 1) | Distinct (volume, page) pairs |
+|---|---|---|---|
+| All resolved proposals | 431 | 1,338 | 1,282 |
+| Documents with proposed text | 297 | 1,105 | 1,061 |
+| *(for comparison)* the sheet's own `pages` cell | 431 | 1,341 | 1,285 |
+
+The sum double-counts, because short notices share a page with whatever else was
+printed that day; the distinct count is the union of `(volume, page)` pairs and is
+the honest figure. Both clear the 1,000-page bar.
+
+The quoted numbers come from the index response's `start_page` and `end_page`
+integers, bucketed by volume — **not** from the sheet's `pages` cell. Two reasons,
+and both change the answer:
+
+* the cell's wrapper varies four ways ("(Pages 1-2)", "Pages 1-2", "(Page 1)", and
+  one doubled closing paren), and a page number is only unique inside its volume,
+  which the cell does not carry. Taking the volume from the sheet's `publish_date`
+  would put every pre-2022 January notice in the wrong volume.
+* for two rows the cell is simply about a different document. `NPRM-186` and
+  `NPRM-287` are both withdrawal notices, and their page cells ("(Page
+  74210-74213)", "Page 29148-29149") name the pages of the *original* NPRM being
+  withdrawn, while the Register prints the withdrawal at 86 FR 14289-14290 and
+  81 FR 13303. The sheet's own `citation` column agrees with the Register in both
+  cases ("Volume 86, Number 48 (Monday, March 15, 2021)" → 2021-03-15), which is
+  how the resolution was confirmed; only the page cell disagrees. That is the whole
+  3-page gap between the two rows of the table.
+
+`engine/api/citations.corpus_pages` recounts the same thing from the built nodes
+instead of from the harvest, and `tests/test_nprm_text.py` fails if the two
+disagree — the corpus page count is a published number, so it is not allowed to
+depend on which layer you ask.
+
+The arithmetic itself lives in **`engine/graph/pages.py`**, and every layer that
+prints a page range to a reader now calls that one function: the proposal harvest
+(`nprm_text.py`), the final-rule collector (`collect.py`), the retrieval corpus
+and `engine/api/citations.py`. There were four implementations before, and they
+did agree on real data — which is precisely why nothing caught the one that would
+print a reversed `"66022-66019"` for an inverted pair. Two functions that agree
+are a convention; one function is an invariant.
+
+`tests/test_nprm_retrieval.py` therefore asserts *identity* of the binding in each
+module rather than equality of their output — a freshly re-introduced local copy
+would pass every case anyone thought to list — plus, corpus-wide, that no
+paragraph's range disagrees with its own document node. That second check is what
+caught 25,687 adopted paragraphs reporting "page range not recorded" beside a
+populated `fr_citation`, while the Register had stated their pages all along. A
+page the source never gave must not be invented; a page it did give must not be
+denied.
 
 ---
 
@@ -282,10 +414,13 @@ correction, 5 dangling references.
 
 | File | Contents (current build) |
 |---|---|
-| `data/build/nodes.jsonl` | 887 nodes: NPRM 431, Docket 328, ServiceBulletin 55, Revision 29, AD 28, ForeignAD 16. Paragraph nodes are written to `paragraphs.jsonl` instead. Aircraft nodes are merged in by `engine.graph.aircraft_nodes --merge`; none were present at measurement. |
-| `data/build/edges.jsonl` | 944 edges: IN_DOCKET 461, HAS_PARAGRAPH 353, REFERENCES_SB 63, PROPOSED_BY 22, HAS_REVISION 29, ADOPTS_MCAI 16 |
-| `data/build/paragraphs.jsonl` | 353 paragraphs |
-| `data/build/revision_text.jsonl` | sidecar: `plain_text` per revision (29) |
+| `data/build/nodes.jsonl` | 10,456 nodes: Docket 2,396, Revision 2,161, AD 2,117, ServiceBulletin 1,832, ForeignAD 1,519, NPRM 431. Paragraph nodes are written to the paragraph files instead. Aircraft nodes are merged in by `engine.graph.aircraft_nodes --merge`. |
+| `data/build/edges.jsonl` | 34,484 edges: HAS_PARAGRAPH 25,687, IN_DOCKET 2,550, HAS_REVISION 2,161, REFERENCES_SB 2,018, ADOPTS_MCAI 1,724, SUPERSEDES 303, PROPOSED_BY 41. There is no `HAS_PARAGRAPH` edge from an NPRM: the contract declares that edge `from: ["Revision"]` only, so a proposal's paragraphs are linked by their own `nprm_id` field (see `docs/contract_change_requests.md`). |
+| `data/build/paragraphs.jsonl` | 25,687 adopted paragraphs. **This is the file the rules extractor reads**, and no proposal paragraph is ever written to it. |
+| `data/build/nprm_paragraphs.jsonl` | 3,048 proposal paragraphs, every one `source_kind: NPRM`, `document_stage: PROPOSED` |
+| `data/build/revision_text.jsonl` | sidecar: `plain_text` per revision (2,161) |
+| `data/build/nprm_text.jsonl` | sidecar: `plain_text` per proposal (431), plus the Federal Register `fr_action`, `fr_publication_date`, `fr_citation`, `start_page`, `end_page`, `resolved_via`, and the spreadsheet's own `sheet_publish_date` / `sheet_pages` / `sheet_citation` kept verbatim as the source's words |
+| `data/build/provenance.jsonl`, `data/build/provenance_nprm.jsonl` | audit manifests (2,161 and 431): SHA-256 over the raw response bytes, `retrieved_at`, `source_bytes`. `--verify-provenance` re-hashes both caches against them. |
 | `data/build/make_normalization.json` | sidecar: raw manufacturer strings behind each normalized make |
 | `data/build/ingest_report.json` | the report this document quotes |
 
@@ -301,6 +436,7 @@ write time (`emit.py`).
 python3 -m engine.ingest.build [-h] [--since SINCE] [--until UNTIL]
                                [--term TERM] [--offline]
                                [--skip-nprm-dockets] [--limit LIMIT]
+                               [--nprm-index NPRM_INDEX] [--no-nprm-text]
 ```
 
 | Flag | Default | Meaning |
@@ -311,6 +447,8 @@ python3 -m engine.ingest.build [-h] [--since SINCE] [--until UNTIL]
 | `--offline` | off | use the caches only; raise if a needed index response is absent |
 | `--skip-nprm-dockets` | off | do not look up final rules for spreadsheet dockets outside the window |
 | `--limit` | none | cap documents, for smoke runs |
+| `--nprm-index` | `data/reference/challenge-4-ad-index.xlsx` | the challenge index to read proposals from |
+| `--no-nprm-text` | off | skip the proposal full-text harvest; NPRM nodes are still emitted from the spreadsheet, without `plain_text` or paragraphs |
 
 Other ingest modules: `python3 -m engine.ingest.fleet --demo-fleet` builds the fleet
 (see `docs/fleet.md`).
@@ -328,18 +466,24 @@ month)`, which is correct for every year. Regression tests are in
 ends match the calendar, leap February is 29, windows cover every day of the year).
 The cache now holds `rules_2021-02-01_2021-02-28.json` with 45 documents.
 
-**Open: the built data predates a label-format change.** `ad_xml.py` currently
-emits paragraph labels without parentheses (`a`, `c`), and `tests/test_ad_xml.py`
-asserts `list("abcdefghijkl")`. The files in `data/build/` (written 11:14, with
-`ad_xml.py` modified 11:17) carry `(a)`, `(c)`, so paragraph ids look like
-`2026-20103#(c)`. Offsets are unaffected (verified above) but a rebuild will rename
-every paragraph id, and `rules.jsonl`, `delegations.jsonl` and the retrieval index
-all key on the old ids. Rebuild and re-extract together. I did not rebuild.
+**Fixed: the built data predated a label-format change, and the build was a
+one-month smoke window.** Both were resolved by a full rebuild at the CLI default:
+`data/build/` now holds 2,161 revisions and 2,117 ADs from 2021-01-01 onward plus
+all 431 proposals, with paragraph ids in the current label format. The retrieval
+index was rebuilt against it (fingerprint `28735:1d5b1a33d4895b48`).
 
-**Open: the current build is a one-month smoke window.** It holds 28 ADs from
-2026-10-01..2026-10-31, not the 2021-onward corpus the CLI default describes. The
-2,166-document index is cached; the XML for the full window is not yet
-downloaded (`data/raw/fr_ad/` held 803 files at measurement).
+**Open: one genuine AD proposal has no sectioned text.** `04-28145` is a real AD
+proposal whose legacy inline labels sit outside the `EXTRACT` wrapper
+`ad_xml._sections_from_inline_labels` requires, so it contributes a document and
+pages but no paragraphs. Relaxing the wrapper would change how all 2,161 adopted
+revisions parse, which is too wide a blast radius for one document. Its full text
+is still in `data/build/nprm_text.jsonl`.
+
+**Open: `E8-18239` is not an airworthiness directive.** It is a 14 CFR Part 61
+rulemaking (Robinson helicopter training requirements) and appears to be in the
+challenge index by mistake. It is ingested as given — the index is the organizers'
+dataset and this ingest does not second-guess its membership — but it has no AD
+paragraph structure and never will.
 
 **Open: `ServiceBulletin` nodes are over-split.** The 55 nodes include variants of
 the same bulletin, for example `BOEING-757-53A0122-RB`, `BOEING-757-53A0122` and
