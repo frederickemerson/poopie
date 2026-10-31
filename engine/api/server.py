@@ -45,6 +45,7 @@ from engine.retrieval.plan import plan_query
 from engine.retrieval.search import search
 from engine.verify.gate import evaluate_gate
 from engine.verify.refusals import resolvable_by as refusal_resolver
+from engine.verify.terms import subject_terms
 from engine.verify.verifier import verify
 
 #: What the library listing tells the UI it may send. Read from the places that
@@ -431,7 +432,12 @@ def _stream(
     # are streamed above with their citations so the UI can show a drop
     # happening, which is the point: the gate is visible, not implied.
     retrieved = {hit.paragraph_id: hit for hit in result.hits}
-    verification = verify(drafted.sentences, retrieved)
+    # The identifiers this question asked about are exempt from the numeric
+    # gate: they are what was asked, not a claim about a paragraph. They come
+    # from the entity pass, so an identifier the writer invented is not exempt.
+    verification = verify(
+        drafted.sentences, retrieved, subject=subject_terms(entities)
+    )
     timings["verify"] = verification.stage_ms
     yield _sse("verification", verification.as_payload())
 

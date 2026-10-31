@@ -57,11 +57,27 @@ const STRENGTHS: readonly { readonly title: string; readonly body: string }[] = 
 ];
 
 /** The product surface, stated as the things an engineer actually types. */
+// Each of these was run against the engine and the note says what it actually
+// returned, including the one that refuses. An example question is a promise,
+// and the page previously made four the engine could not keep -- one of them
+// about an AD that is not even in this corpus, so it could only ever refuse.
 const ASKS: readonly { readonly q: string; readonly note: string }[] = [
-  { q: "Which ADs apply to N117UW?", note: "applicability across the whole corpus for one airframe" },
-  { q: "What must I do for AD 2024-13-05, and by when?", note: "the required action and its compliance deadline" },
-  { q: "Is AD 2019-08-11 still the current revision?", note: "the supersession chain, ending at what is in force" },
-  { q: "How many of my fleet does AD 2022-21-11 affect?", note: "the same decision run across every tail number" },
+  {
+    q: "What is the unsafe condition addressed by AD 2009-17-05?",
+    note: "answered from the directive's own paragraphs, every sentence cited",
+  },
+  {
+    q: "Does AD 2004-21-08 apply to N117UW?",
+    note: "the applicability paragraph, and the part numbers it turns on",
+  },
+  {
+    q: "Is AD 2004-21-08 the current revision, or has it been superseded?",
+    note: "the supersession chain, ending at what is in force and when",
+  },
+  {
+    q: "What must I do for AD 2024-13-05, and by when?",
+    note: "refused: the compliance steps live in a Boeing bulletin this corpus does not hold",
+  },
 ];
 
 const REFUSALS: readonly { readonly code: string; readonly meaning: string }[] = [

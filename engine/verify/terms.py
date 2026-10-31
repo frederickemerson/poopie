@@ -24,6 +24,18 @@ Three decisions, each with a reason:
    demands that *every* digit-bearing term in the sentence appear in the cited
    span. A sentence inventing "within 14 months" over a paragraph that says
    "within 10 months" fails outright and no overlap score can rescue it.
+
+4. **Except the question's own subject**, which is not a claim about the cited
+   span at all. An answer to "does AD 2021-09-01 apply to N694AV?" has to name
+   the AD and the tail number, and neither can ever appear in the span: the AD
+   number is the document's identity, printed in its header rather than its
+   body, and a tail number lives in the operator's fleet record and appears in
+   no directive ever written. Requiring them verbatim made every sentence that
+   stated what the user asked about unverifiable by construction, which showed
+   up as the engine refusing questions it had in fact already decided. The
+   exempt set comes from the entity pass -- see ``subject_terms`` -- so it
+   covers only identifiers the *question* resolved, never one the answer writer
+   produced.
 """
 
 from __future__ import annotations
@@ -104,6 +116,43 @@ def numeric_terms(text: str) -> set[str]:
     return {t for t in content_terms(text, use_stem=False) if _HAS_DIGIT.search(t)}
 
 
+#: Entity kinds whose values identify *what the question is about* rather than
+#: assert anything about a paragraph's content. An AD number and an amendment
+#: number are the document's identity; a docket id is the rulemaking file it
+#: arrived in; a tail number is an operator's fleet record. None of the three
+#: kinds of thing is body text, so none can be required to appear in body text.
+#:
+#: Serial numbers, models, type codes and ATA chapters are deliberately absent.
+#: Those are applicability facts: a sentence asserting a serial or a model *is*
+#: making a claim the cited paragraph has to carry, and exempting them would
+#: turn off the gate on exactly the terms it exists for.
+SUBJECT_ENTITY_KINDS: tuple[str, ...] = (
+    "ad_numbers",
+    "docket_ids",
+    "amendments",
+    "tail_numbers",
+)
+
+
+def subject_terms(entities: object) -> frozenset[str]:
+    """Digit-bearing tokens of the identifiers *this question* resolved.
+
+    Reads the entity pass rather than pattern-matching the drafted sentence, so
+    an identifier the answer writer invented is not in the set and stays
+    required. Only the digit-bearing token is exempt: "AD", "docket" and
+    "amendment" are ordinary prose and still have to be supported.
+
+    Digit-bearing tokens are returned by ``stem`` unchanged, so one set is
+    comparable against both the stemmed content terms and the unstemmed numeric
+    terms of a sentence.
+    """
+    out: set[str] = set()
+    for kind in SUBJECT_ENTITY_KINDS:
+        for value in getattr(entities, kind, None) or ():
+            out |= numeric_terms(str(value))
+    return frozenset(out)
+
+
 @dataclass(frozen=True)
 class Overlap:
     """Why a sentence passed or failed, in numbers a reviewer can re-derive."""
@@ -119,21 +168,29 @@ class Overlap:
         return not self.missing_numeric
 
 
-def overlap(sentence: str, cited: str) -> Overlap:
+def overlap(
+    sentence: str, cited: str, *, subject: frozenset[str] = frozenset()
+) -> Overlap:
     """Fraction of the sentence's content terms present in the cited span.
 
-    A sentence with no content terms at all ("It does." or a bare connective)
-    has coverage 0.0, not 1.0: an empty claim is not a supported claim, and
-    treating it as supported would let filler through unchecked.
+    ``subject`` holds the question's own identifiers (``subject_terms``). They
+    are removed from the sentence before scoring, not merely excused from the
+    numeric gate: a term that cannot be supported must not count against
+    coverage either, or the same incoherence returns one gate later.
+
+    A sentence with no content terms left -- "It does.", a bare connective, or
+    nothing but the identifiers it was asked about -- has coverage 0.0, not 1.0:
+    an empty claim is not a supported claim, and treating it as supported would
+    let filler through unchecked.
     """
-    sent = content_terms(sentence)
+    sent = content_terms(sentence) - subject
     src = content_terms(cited)
     if not sent:
         return Overlap(0.0, 0, 0, (), ())
     matched = sent & src
     missing = sent - src
     missing_numeric = tuple(
-        sorted(numeric_terms(sentence) - numeric_terms(cited))
+        sorted(numeric_terms(sentence) - subject - numeric_terms(cited))
     )
     return Overlap(
         coverage=len(matched) / len(sent),

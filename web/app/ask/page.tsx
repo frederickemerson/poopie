@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BlastRadius } from "@/components/blast/BlastRadius";
+import { ReplayNotice } from "@/components/ReplayNotice";
 import { BackendStatus } from "@/components/BackendStatus";
 import { AnswerEnvelopePanel } from "@/components/centre/AnswerEnvelopePanel";
 import { AnswerStream } from "@/components/centre/AnswerStream";
@@ -367,6 +368,8 @@ export default function Page() {
             </div>
           </div>
         </header>
+
+        {source === "mock" ? <ReplayNotice /> : null}
 
         {workspace === "blast" ? (
           <BlastRadius

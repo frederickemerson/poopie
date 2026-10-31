@@ -15,6 +15,11 @@ Four gates, in this order, cheapest and most decisive first:
    text. A citation whose offsets do not resolve is not a citation.
 3. **Numeric support.** Every digit-bearing term in the sentence must appear in
    the cited span. Deadlines, serials and model suffixes are not averaged in.
+   The one exemption is the question's own subject -- the AD number and tail
+   number it asked about, which are document identity and fleet record rather
+   than body text, and so can never appear in any span. See
+   ``terms.subject_terms``; it is read from the entity pass, so an identifier
+   the answer writer invented is not exempt.
 4. **Term coverage.** The share of the sentence's content terms present in the
    cited span must reach ``TERM_COVERAGE_MIN``.
 
@@ -40,7 +45,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from contracts.contract import ContractViolation, validate_citation  # noqa: E402
-from engine.verify.terms import Overlap, overlap  # noqa: E402
+from engine.verify.terms import Overlap, overlap, subject_terms  # noqa: E402
 from engine.verify.thresholds import (  # noqa: E402
     MIN_KEPT_FRACTION,
     MIN_KEPT_SENTENCES,
@@ -192,6 +197,7 @@ def _best_support(
     *,
     coverage_min: float,
     require_numeric: bool,
+    subject: frozenset[str],
 ) -> SentenceVerdict:
     if not sentence.citation_ids:
         return SentenceVerdict(
@@ -211,7 +217,7 @@ def _best_support(
             if first_failure is None:
                 first_failure = (reason or DROP_UNPARSEABLE, detail or "")
             continue
-        scored = overlap(sentence.text, span.text)
+        scored = overlap(sentence.text, span.text, subject=subject)
         if best is None or scored.coverage > best[0].coverage:
             best = (scored, span)
 
@@ -268,8 +274,13 @@ def verify(
     *,
     coverage_min: float = TERM_COVERAGE_MIN,
     require_numeric: bool = REQUIRE_NUMERIC_SUPPORT,
+    subject: frozenset[str] = frozenset(),
 ) -> Verification:
-    """Verify every sentence against the paragraphs retrieved for this query."""
+    """Verify every sentence against the paragraphs retrieved for this query.
+
+    ``subject`` is the question's own identifiers, from ``subject_terms``. It
+    defaults to empty so a caller that does not pass it gets the strict gate.
+    """
     started = time.perf_counter()
     retrieved_ids = set(retrieved)
     verdicts = [
@@ -279,6 +290,7 @@ def verify(
             retrieved_ids,
             coverage_min=coverage_min,
             require_numeric=require_numeric,
+            subject=subject,
         )
         for sentence in sentences
     ]
