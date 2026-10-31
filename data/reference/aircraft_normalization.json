@@ -1,0 +1,451 @@
+{
+ "version": "1.0.0",
+ "note": "Explicit join table between OpenSky strings and the forms used in FAA AD applicability text. Aliases are matched after casefold + whitespace collapse; there is no fuzzy matching. A string not listed is unmapped and reported as such. ad_models are type-level series names (e.g. 737-800) as ICAO type designators cover several variants (737-823, 737-824...); variant-level matching uses Aircraft.model.",
+ "manufacturers": {
+  "Boeing": {
+   "ad_forms": [
+    "The Boeing Company",
+    "Boeing"
+   ],
+   "opensky_aliases": [
+    "boeing",
+    "the boeing company",
+    "boeing company",
+    "the boeing co.",
+    "boeing co",
+    "boeing company the",
+    "the boeing company commercial airplane division",
+    "the boeing company commercial airplane group",
+    "the boeing company boeing commercial airplane group",
+    "boeing commercial airplanes",
+    "boeing commercial airplane",
+    "boeing commercial airplane group",
+    "boeing commercial aircraft",
+    "boeing charleston (chs)",
+    "boeing everett wa (pae)",
+    "boeing airplane company",
+    "boeing aircraft company",
+    "boeing aircraft"
+   ]
+  },
+  "Airbus": {
+   "ad_forms": [
+    "Airbus SAS",
+    "Airbus"
+   ],
+   "opensky_aliases": [
+    "airbus",
+    "airbus industrie",
+    "airbus sas",
+    "airbus industries",
+    "airbus s.a.s",
+    "airbus s.a.s.",
+    "airbus industie"
+   ]
+  },
+  "Embraer": {
+   "ad_forms": [
+    "Embraer S.A.",
+    "Embraer"
+   ],
+   "opensky_aliases": [
+    "embraer",
+    "embraer s a",
+    "embraer s.a.",
+    "embraer sa",
+    "embraer-empresa brasileira de",
+    "embraer empresa brasileira de",
+    "embraer empresa brasileira de aeronautica s.a.",
+    "embraer empresa brasileira de aeron�utica s.a.",
+    "embraer - empresa brasileira de aeronautica",
+    "embraer - empresa brasileira de aeronáutica sa",
+    "embraer-empresa brasileira de aeronautica",
+    "empresa brasileira de aeronautica sa"
+   ]
+  },
+  "De Havilland Canada": {
+   "ad_forms": [
+    "Bombardier Inc.",
+    "De Havilland Aircraft of Canada Limited"
+   ],
+   "opensky_aliases": [
+    "bombardier",
+    "bombardier inc",
+    "bombardier inc.",
+    "de havilland canada",
+    "dehavilland",
+    "de havilland inc.",
+    "de havilland inc",
+    "boeing of canada ltd. de havilland division",
+    "boeing of canada ltd.",
+    "boeing of canada/dehav div",
+    "boeing / dehavilland",
+    "the de havilland aircraft company of canada a division of boeing of canada ltd.",
+    "the de havilland aircraft company of canada, a division of boeing of canada ltd",
+    "the de havilland aircraft of canada, limited"
+   ],
+   "note": "Dash 8 (DHC-8) type certificate has passed Boeing of Canada -> de Havilland -> Bombardier -> De Havilland Canada; the AD 'make' for these is typically Bombardier Inc."
+  },
+  "ATR": {
+   "ad_forms": [
+    "ATR - GIE Avions de Transport Régional",
+    "ATR"
+   ],
+   "opensky_aliases": [
+    "avions de transport regional",
+    "avions de transport régional",
+    "atr-gie avions de transport regional",
+    "atr - gie avions de transport regional",
+    "atr - gie avions de transport régional",
+    "atr-gie avions de trnsp rgnl",
+    "atr-gie avions de trnsp region",
+    "atr-gie avions de transport",
+    "atr",
+    "eads/alenia atr",
+    "eads atr - alenia",
+    "aerospatiale - aeritalia",
+    "aerospatiale/aeritalia",
+    "aerospatiale - alenia",
+    "aerospatiale/alenia",
+    "aerospatiale-alenia",
+    "aerospatiale/atr",
+    "aerospatiale"
+   ],
+   "note": "Aerospatiale/Aeritalia/Alenia are the original builder names on early ATR 42/72 airframes; the type certificate holder is ATR."
+  }
+ },
+ "types": {
+  "B733": {
+   "manufacturer": "Boeing",
+   "family": "737",
+   "ad_models": [
+    "737-300"
+   ]
+  },
+  "B734": {
+   "manufacturer": "Boeing",
+   "family": "737",
+   "ad_models": [
+    "737-400"
+   ]
+  },
+  "B735": {
+   "manufacturer": "Boeing",
+   "family": "737",
+   "ad_models": [
+    "737-500"
+   ]
+  },
+  "B736": {
+   "manufacturer": "Boeing",
+   "family": "737",
+   "ad_models": [
+    "737-600"
+   ]
+  },
+  "B737": {
+   "manufacturer": "Boeing",
+   "family": "737",
+   "ad_models": [
+    "737-700"
+   ]
+  },
+  "B738": {
+   "manufacturer": "Boeing",
+   "family": "737",
+   "ad_models": [
+    "737-800"
+   ]
+  },
+  "B739": {
+   "manufacturer": "Boeing",
+   "family": "737",
+   "ad_models": [
+    "737-900"
+   ]
+  },
+  "B37M": {
+   "manufacturer": "Boeing",
+   "family": "737",
+   "ad_models": [
+    "737-7"
+   ]
+  },
+  "B38M": {
+   "manufacturer": "Boeing",
+   "family": "737",
+   "ad_models": [
+    "737-8"
+   ]
+  },
+  "B39M": {
+   "manufacturer": "Boeing",
+   "family": "737",
+   "ad_models": [
+    "737-9"
+   ]
+  },
+  "B752": {
+   "manufacturer": "Boeing",
+   "family": "757",
+   "ad_models": [
+    "757-200"
+   ]
+  },
+  "B753": {
+   "manufacturer": "Boeing",
+   "family": "757",
+   "ad_models": [
+    "757-300"
+   ]
+  },
+  "B762": {
+   "manufacturer": "Boeing",
+   "family": "767",
+   "ad_models": [
+    "767-200"
+   ]
+  },
+  "B763": {
+   "manufacturer": "Boeing",
+   "family": "767",
+   "ad_models": [
+    "767-300"
+   ]
+  },
+  "B764": {
+   "manufacturer": "Boeing",
+   "family": "767",
+   "ad_models": [
+    "767-400"
+   ]
+  },
+  "B772": {
+   "manufacturer": "Boeing",
+   "family": "777",
+   "ad_models": [
+    "777-200"
+   ]
+  },
+  "B77L": {
+   "manufacturer": "Boeing",
+   "family": "777",
+   "ad_models": [
+    "777-200LR",
+    "777F"
+   ]
+  },
+  "B773": {
+   "manufacturer": "Boeing",
+   "family": "777",
+   "ad_models": [
+    "777-300"
+   ]
+  },
+  "B77W": {
+   "manufacturer": "Boeing",
+   "family": "777",
+   "ad_models": [
+    "777-300ER"
+   ]
+  },
+  "B788": {
+   "manufacturer": "Boeing",
+   "family": "787",
+   "ad_models": [
+    "787-8"
+   ]
+  },
+  "B789": {
+   "manufacturer": "Boeing",
+   "family": "787",
+   "ad_models": [
+    "787-9"
+   ]
+  },
+  "B78X": {
+   "manufacturer": "Boeing",
+   "family": "787",
+   "ad_models": [
+    "787-10"
+   ]
+  },
+  "A319": {
+   "manufacturer": "Airbus",
+   "family": "A319",
+   "ad_models": [
+    "A319-100"
+   ]
+  },
+  "A320": {
+   "manufacturer": "Airbus",
+   "family": "A320",
+   "ad_models": [
+    "A320-100",
+    "A320-200"
+   ]
+  },
+  "A321": {
+   "manufacturer": "Airbus",
+   "family": "A321",
+   "ad_models": [
+    "A321-100",
+    "A321-200"
+   ]
+  },
+  "A20N": {
+   "manufacturer": "Airbus",
+   "family": "A320",
+   "ad_models": [
+    "A320neo"
+   ]
+  },
+  "A21N": {
+   "manufacturer": "Airbus",
+   "family": "A321",
+   "ad_models": [
+    "A321neo"
+   ]
+  },
+  "A332": {
+   "manufacturer": "Airbus",
+   "family": "A330",
+   "ad_models": [
+    "A330-200"
+   ]
+  },
+  "A333": {
+   "manufacturer": "Airbus",
+   "family": "A330",
+   "ad_models": [
+    "A330-300"
+   ]
+  },
+  "A339": {
+   "manufacturer": "Airbus",
+   "family": "A330",
+   "ad_models": [
+    "A330-900"
+   ]
+  },
+  "A359": {
+   "manufacturer": "Airbus",
+   "family": "A350",
+   "ad_models": [
+    "A350-900"
+   ]
+  },
+  "A35K": {
+   "manufacturer": "Airbus",
+   "family": "A350",
+   "ad_models": [
+    "A350-1000"
+   ]
+  },
+  "E170": {
+   "manufacturer": "Embraer",
+   "family": "E170",
+   "ad_models": [
+    "ERJ 170-100"
+   ]
+  },
+  "E75L": {
+   "manufacturer": "Embraer",
+   "family": "E170",
+   "ad_models": [
+    "ERJ 170-200"
+   ]
+  },
+  "E75S": {
+   "manufacturer": "Embraer",
+   "family": "E170",
+   "ad_models": [
+    "ERJ 170-200"
+   ]
+  },
+  "E190": {
+   "manufacturer": "Embraer",
+   "family": "E190",
+   "ad_models": [
+    "ERJ 190-100"
+   ]
+  },
+  "E195": {
+   "manufacturer": "Embraer",
+   "family": "E190",
+   "ad_models": [
+    "ERJ 190-200"
+   ]
+  },
+  "DH8A": {
+   "manufacturer": "De Havilland Canada",
+   "family": "DHC-8",
+   "ad_models": [
+    "DHC-8-100"
+   ]
+  },
+  "DH8B": {
+   "manufacturer": "De Havilland Canada",
+   "family": "DHC-8",
+   "ad_models": [
+    "DHC-8-200"
+   ]
+  },
+  "DH8C": {
+   "manufacturer": "De Havilland Canada",
+   "family": "DHC-8",
+   "ad_models": [
+    "DHC-8-300"
+   ]
+  },
+  "DH8D": {
+   "manufacturer": "De Havilland Canada",
+   "family": "DHC-8",
+   "ad_models": [
+    "DHC-8-400"
+   ]
+  },
+  "AT43": {
+   "manufacturer": "ATR",
+   "family": "ATR 42",
+   "ad_models": [
+    "ATR 42-300"
+   ]
+  },
+  "AT45": {
+   "manufacturer": "ATR",
+   "family": "ATR 42",
+   "ad_models": [
+    "ATR 42-500"
+   ]
+  },
+  "AT46": {
+   "manufacturer": "ATR",
+   "family": "ATR 42",
+   "ad_models": [
+    "ATR 42-600"
+   ]
+  },
+  "AT72": {
+   "manufacturer": "ATR",
+   "family": "ATR 72",
+   "ad_models": [
+    "ATR 72-200"
+   ]
+  },
+  "AT75": {
+   "manufacturer": "ATR",
+   "family": "ATR 72",
+   "ad_models": [
+    "ATR 72-500"
+   ]
+  },
+  "AT76": {
+   "manufacturer": "ATR",
+   "family": "ATR 72",
+   "ad_models": [
+    "ATR 72-600"
+   ]
+  }
+ }
+}
