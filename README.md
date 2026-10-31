@@ -19,6 +19,46 @@ carrying a source quote verified to be verbatim in its paragraph. At query time
 **no model sits inside retrieval**: a rules engine, not an LLM, produces every
 applies / does-not-apply / cannot-determine decision.
 
+## What it gets right
+
+Every claim below is a measurement with its method attached. None is a projection,
+and the one place the engine fails badly is in this list too.
+
+**Zero wrong answers on the adversarial set.** 31 trap questions built to elicit a
+confident false verdict — a superseded revision quoted as current, applicability
+delegated to a document we do not hold, a model designation that silently names a
+whole fleet. All 31 are blocked. Two root-cause fixes moved that from 23/31 to
+**31/31**, and correct refusal codes from 21/31 to 28/31, with false refusals
+unchanged at 2/20. All 10 delegation traps held `EXTERNAL_SOURCE_REQUIRED`.
+
+**Zero fabrications on an external 39-prompt suite.** Run against a supplied answer
+key over the NPRM workbook: **0 fabricated sentences across all 39 prompts**,
+including W25, which explicitly baits a retired synthetic fixture ("do not reuse the
+old 100-hour answer"). It did not. It also answered none of the 17 prompts that
+wanted a substantive answer — see *Honest status*, which treats that as the failure
+it is rather than rounding it into the win.
+
+**The deciding is effectively instantaneous.** Measured over 20 consecutive live
+queries, both model calls in the loop, nothing served from cache:
+
+| | Measured |
+|---|---|
+| Applicability verdict | **0.5 ms** |
+| Everything this engine decides (entity pass, retrieval, applicability, verification) | **117 ms** |
+| Average refusal, end to end | **1.2 s** |
+| Average answered question, end to end | **2.5 s** (p50 1.6 s, p95 4.3 s) |
+
+2.9% of an answered question is this engine; the other 97.1% is the two model calls
+at either end. A refusal is fastest because it never reaches the answer writer.
+
+**The corpus is 8.4× the challenge's bar** — 8,363 distinct Federal Register pages
+against a 1,000-page requirement, counted from the documents' own page fields.
+
+**Every sentence is held to a verbatim span, or deleted.** The verifier re-checks each
+drafted sentence against the paragraph it cites and drops the ones that do not hold;
+if too few survive, the answer is withheld entirely rather than padded. This is
+observable in the traces — it routinely deletes the engine's own prose.
+
 ## Architecture
 
 ```
@@ -56,9 +96,13 @@ python3 -m engine.api.citations --from-index # same, from the cached FR index
 |---|---|---|---|
 | Entity pass | 0.07 ms | 0.09–0.11 ms | 5 ms |
 | Retrieval (graph filter + BM25 + dense, RRF) | 23.2–25.1 ms | 62.2–66.5 ms | 100 ms |
-| Whole query, model calls included | not claimed | not claimed | 3,000 ms |
+| Whole query, model calls included | 1,627 ms | 4,309 ms | 3,000 ms |
 
-Measured warm over 585 samples (39 generated queries × 15 repeats) against the
+The whole-query row is a separate measurement: 20 consecutive live queries with
+both model calls in the loop and nothing served from cache. Its p50 beats the
+3,000 ms target and **its p95 does not** — the overrun is entirely the answer
+writer, which averages 2,783 ms on its own. The deterministic rows below are
+measured warm over 585 samples (39 generated queries × 15 repeats) against the
 built index named above. Reproduce with:
 
 ```bash
@@ -254,6 +298,22 @@ at that size.
 
 Not finished, stated plainly:
 
+- **The proposals half of the corpus is effectively unreachable by question, and
+  one refusal states a falsehood.** A 39-prompt external suite over the NPRM
+  workbook refused all 39 and answered none of the 17 that wanted a substantive
+  answer. Three causes, each confirmed from the run: `NPRM-001`-style identifiers
+  are not recognised by the entity pass, so every such prompt returns an entirely
+  empty entity set and the engine never resolves the document named; record lookup
+  is scoped to adopted ADs; and where NPRM text *was* retrieved the verifier
+  dropped every drafted sentence. The scoping produces the serious one — W01 asked
+  for docket `FAA-2026-11814` and got `NO_EVIDENCE: "FAA-2026-11814 is not in the
+  2117 airworthiness directives loaded here"`, which is false: that docket is in
+  the graph both as an NPRM node and as a `Docket` node, as are all 322 NPRM
+  dockets. The engine is reporting the emptiness of a filter as the emptiness of
+  the corpus. For a project whose whole claim is that it knows what it cannot
+  determine, asserting the absence of a record it holds is the worst failure
+  available, and it is open. Separately, `EXTERNAL_SOURCE_REQUIRED` fires on these
+  prompts naming documents unrelated to the question asked.
 - **The thresholds in `engine/verify/thresholds.py` are untuned defaults.** No
   sweep against a labelled set has been run, so `TERM_COVERAGE_MIN = 0.50` and
   `NO_EVIDENCE_COSINE_MIN = 0.30` are reasoned guesses. The file says so. Any

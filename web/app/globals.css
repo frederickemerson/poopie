@@ -61,35 +61,6 @@
   color-scheme: light;
 }
 
-/* Dark is a real variant, not an inversion: fog and canvas swap for graphite
-   bands, and the inks lighten. Ember holds its hue because it is already
-   legible on both. */
-:root[data-theme="dark"] {
-  --c-bg: #161616;
-  --c-raised: #202020;
-  --c-sunken: #121212;
-  --c-line: #2b2b2b;
-  --c-line-strong: rgba(235, 230, 221, 0.22);
-
-  --c-ink: #ebe6dd;
-  --c-ink-2: #b4afa6;
-  --c-ink-3: #828282;
-
-  --c-accent: #ff7d47;
-  --c-accent-dim: #33281d;
-
-  --c-ok: #6fb98c;
-  --c-ok-bg: #16251c;
-  --c-no: #e08b80;
-  --c-no-bg: #2a1a18;
-  --c-maybe: #c2a755;
-  --c-maybe-bg: #27210f;
-
-  --c-hl: #33281d;
-
-  color-scheme: dark;
-}
-
 @theme inline {
   --color-bg: var(--c-bg);
   --color-raised: var(--c-raised);
@@ -386,4 +357,59 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .pipe-node,
   .pipe-edge { animation: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Otto.
+
+   An owl, because the job is reading a great deal of small print at night and
+   refusing to guess at the bits that are missing. Drawn from the same boxes and
+   hairlines as the rest of the system so it reads as part of the product
+   rather than a sticker applied to it.
+
+   The idle motion is deliberately slight: the pupils track slowly from side to
+   side, as though reading, and blink about once every seven seconds. Both are
+   pure CSS on transform only, so they cost nothing on the compositor and stop
+   dead under a reduced-motion preference. The keyframes end where they began,
+   so a browser that never runs them shows a perfectly composed owl.
+   -------------------------------------------------------------------------- */
+
+@keyframes otto-blink {
+  0%, 91%, 100% { transform: scaleY(1); }
+  94.5% { transform: scaleY(0.1); }
+}
+
+@keyframes otto-look {
+  0%, 22% { transform: translateX(0); }
+  34%, 56% { transform: translateX(2.2px); }
+  68%, 90% { transform: translateX(-2.2px); }
+  100% { transform: translateX(0); }
+}
+
+.otto-pupil {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: otto-blink 7.2s cubic-bezier(0.32, 0.72, 0, 1) infinite;
+}
+
+.otto-look {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: otto-look 11s cubic-bezier(0.32, 0.72, 0, 1) infinite;
+}
+
+/* The head tilts on hover, the body stays put. Owls do exactly this. */
+.otto-head {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transition: transform 520ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.otto:hover .otto-head { transform: rotate(-5deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .otto-pupil,
+  .otto-look { animation: none; }
+  .otto-head { transition: none; }
+  .otto:hover .otto-head { transform: none; }
 }

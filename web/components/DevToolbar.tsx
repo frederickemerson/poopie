@@ -18,7 +18,7 @@ const SWITCH =
 
 /**
  * The judge-facing control strip: pick the engine, run any demo question, kill
- * motion, flip theme.
+ * motion.
  *
  * The source switch is deliberately prominent. Everything on screen means
  * something different depending on which engine produced it, so the control
@@ -31,7 +31,7 @@ export function DevToolbar({
   source,
   onSourceChange,
 }: DevToolbarProps) {
-  const { reduced, toggleReduced, theme, toggleTheme } = useMotionPrefs();
+  const { reduced, toggleReduced } = useMotionPrefs();
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -98,10 +98,6 @@ export function DevToolbar({
       >
         <span aria-hidden>{reduced ? "◉" : "○"}</span>
         motion {reduced ? "off" : "on"}
-      </button>
-      <button type="button" onClick={toggleTheme} className={SWITCH} title="switch theme">
-        <span aria-hidden>{theme === "dark" ? "◑" : "◐"}</span>
-        {theme}
       </button>
     </div>
   );
