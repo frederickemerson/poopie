@@ -137,7 +137,7 @@ def build_action(paragraph: dict[str, Any], index: int, payload: dict[str, Any])
         raise ContractViolation(f"Action {record['action_id']} has no description")
     if not quote:
         raise ContractViolation(f"Action {record['action_id']} has no source_quote")
-    if _norm(quote) not in _norm(paragraph["text"]):
+    if _collapse(quote) not in _collapse(paragraph["text"]):
         raise ContractViolation(
             f"Action {record['action_id']} source_quote is not verbatim in "
             f"{paragraph['paragraph_id']}"
@@ -145,8 +145,25 @@ def build_action(paragraph: dict[str, Any], index: int, payload: dict[str, Any])
     return record
 
 
-def _norm(s: str) -> str:
-    return " ".join(s.split()).lower()
+def _collapse(s: str) -> str:
+    """Runs of whitespace to one space. Case is NOT touched.
+
+    The prompt tells the model to copy the quote character for character, and
+    this is the check behind that instruction, so it may only forgive a
+    difference that leaves the same characters in the same order. Source XML
+    carries newlines and runs of spaces from the published document, and a
+    quote copied across a line break legitimately arrives with one space; that
+    is the same text.
+
+    Case folding is a different thing and is not forgiven. In this corpus
+    capitalisation carries meaning -- defined terms, manufacturer names, and
+    part numbers such as 53A0122 where the letter is part of the identifier --
+    so a quote that differs in case is not the document's words and must not
+    pass a check whose error message says "is not verbatim". An earlier version
+    of this function lowercased both sides, which made the claim false; all 124
+    quotes in the current build pass without it.
+    """
+    return " ".join(s.split())
 
 
 def external_node(payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:

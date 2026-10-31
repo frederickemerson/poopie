@@ -44,9 +44,22 @@ Sonnet answer writer after the decision is already made.
 
 Measured warm over 40 queries against the built index.
 
-API spend to date: **under $0.01**. Bulk extraction runs on Haiku 5.5 through the
-Batch API at half price, measured at **$0.000076 per paragraph**, with a
-content-addressed disk cache that makes re-runs free.
+API spend to date: **$0.4417** across 406 recorded calls. Bulk extraction runs
+on Haiku 5.5 through the Batch API at half price and accounts for $0.0261 of
+that — 255 calls over a 353-paragraph corpus, an average of **$0.0000738 per
+paragraph**. That is an average over the corpus, not a per-call price: not every
+paragraph needs a rules pass. The two eval arms are the bulk of the bill at
+$0.3958, because each eval question pays for a Sonnet answer.
+
+Reproduce every figure above with:
+
+```bash
+python3 -m engine.llm.report
+```
+
+It reads `data/build/cost_ledger.jsonl`, which the client appends to on every
+call including cache hits. A content-addressed disk cache makes a re-run free:
+150 of those 406 calls were already cache hits.
 
 ## Why it refuses
 
