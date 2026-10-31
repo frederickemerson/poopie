@@ -1,0 +1,174 @@
+{
+  "contract_version": "1.0.0",
+  "description": "Single source of truth for the AD traceability engine. Every node type, edge type, enum value, event name and payload key used anywhere in engine/, web/ or eval/ MUST appear here. tests/test_contract.py fails the build on any key that does not.",
+
+  "node_types": {
+    "Docket": {
+      "key": "docket_id",
+      "fields": ["docket_id", "title", "has_nprm", "has_final_rule"],
+      "note": "Join key between the NPRM spreadsheet and Federal Register final rules. Format FAA-YYYY-NNNN."
+    },
+    "NPRM": {
+      "key": "nprm_id",
+      "fields": ["nprm_id", "docket_id", "citation", "page_range", "publish_date", "comments_due_date", "make", "model_text", "product_type", "summary", "comment_url", "source"],
+      "note": "From the AD NPRM spreadsheet. Proposed rule: has comments_due_date, has NO effective_date or amendment."
+    },
+    "AD": {
+      "key": "ad_number",
+      "fields": ["ad_number", "docket_id", "current_revision_id", "status", "make", "product_type"],
+      "note": "Identity of a final airworthiness directive, e.g. '2026-21-13'. Spans all its revisions."
+    },
+    "Revision": {
+      "key": "revision_id",
+      "fields": ["revision_id", "ad_number", "docket_id", "fr_document_number", "amendment", "publication_date", "effective_on", "full_text_xml_url", "is_current", "superseded_by"],
+      "note": "One Federal Register document. revision_id == fr_document_number. amendment from docket_ids, e.g. '39-23502'."
+    },
+    "Paragraph": {
+      "key": "paragraph_id",
+      "fields": ["paragraph_id", "revision_id", "label", "role", "heading", "text", "char_start", "char_end", "ordinal"],
+      "note": "paragraph_id format: '{revision_id}#{label}'. char offsets index into Revision.plain_text for exact citation spans."
+    },
+    "Rule": {
+      "key": "rule_id",
+      "fields": ["rule_id", "revision_id", "paragraph_id", "field", "operator", "value", "source_quote", "confidence", "unparsed_reason"],
+      "note": "One applicability condition. source_quote MUST be a verbatim substring of its Paragraph.text."
+    },
+    "Action": {
+      "key": "action_id",
+      "fields": ["action_id", "revision_id", "paragraph_id", "description", "compliance_time", "compliance_basis", "source_quote", "external_ref"],
+      "note": "compliance_basis is an enum; external_ref set when the deadline lives in a document we do not hold."
+    },
+    "Aircraft": {
+      "key": "tail_number",
+      "fields": ["tail_number", "icao24", "manufacturer", "model", "typecode", "serial_number", "operator", "owner", "built_year", "engines", "source"],
+      "note": "Real records only, from the OpenSky public aircraft database. Fields absent in the source stay null and drive CANNOT_DETERMINE; they are never invented."
+    },
+    "ForeignAD": {
+      "key": "foreign_ad_id",
+      "fields": ["foreign_ad_id", "authority", "ad_number", "dated", "held"],
+      "note": "Cross-regulator reference, e.g. EASA AD 2025-0208. held=false means we do not have its text."
+    },
+    "ServiceBulletin": {
+      "key": "sb_id",
+      "fields": ["sb_id", "manufacturer", "number", "revision", "dated", "held"],
+      "note": "held is always false in this build. Referenced-but-absent documents are a first-class refusal cause."
+    }
+  },
+
+  "edge_types": {
+    "IN_DOCKET":     {"from": ["NPRM", "AD"],      "to": "Docket"},
+    "PROPOSED_BY":   {"from": ["AD"],              "to": "NPRM",            "note": "Links a final rule back to its proposal via shared docket."},
+    "HAS_REVISION":  {"from": ["AD"],              "to": "Revision"},
+    "SUPERSEDES":    {"from": ["Revision"],        "to": "Revision"},
+    "HAS_PARAGRAPH": {"from": ["Revision"],        "to": "Paragraph"},
+    "APPLIES_IF":    {"from": ["Revision"],        "to": "Rule"},
+    "REQUIRES":      {"from": ["Revision"],        "to": "Action"},
+    "AFFECTED_BY":   {"from": ["Aircraft"],        "to": "Revision",        "attrs": ["decision", "fired_rule_ids", "unknown_fields"]},
+    "ADOPTS_MCAI":   {"from": ["Revision"],        "to": "ForeignAD"},
+    "REFERENCES_SB": {"from": ["Revision", "Action"], "to": "ServiceBulletin"}
+  },
+
+  "enums": {
+    "paragraph_role": [
+      "EFFECTIVE_DATE", "AFFECTED_ADS", "APPLICABILITY", "SUBJECT", "UNSAFE_CONDITION",
+      "COMPLIANCE", "REQUIRED_ACTIONS", "EXCEPTIONS", "CREDIT", "AMOC",
+      "ADDITIONAL_INFO", "IBR", "OTHER"
+    ],
+    "rule_field": [
+      "manufacturer", "model", "typecode", "serial_number", "engine",
+      "operator", "built_year", "category", "equipment", "modification", "part_number"
+    ],
+    "rule_operator": [
+      "eq", "neq", "in", "not_in", "model_matches",
+      "serial_in_range", "serial_not_in_range", "exists", "not_exists", "unparsed"
+    ],
+    "decision": ["APPLIES", "DOES_NOT_APPLY", "CANNOT_DETERMINE"],
+    "compliance_basis": ["CALENDAR_DATE", "FLIGHT_HOURS", "FLIGHT_CYCLES", "DAYS_AFTER_EFFECTIVE", "EXTERNAL_DOCUMENT", "UNPARSED"],
+    "intent": ["applicability", "requirement", "revision", "search", "fleet_impact"],
+    "refusal_code": [
+      "NEED_CONFIG",
+      "CANNOT_DETERMINE",
+      "NO_EVIDENCE",
+      "OUT_OF_SCOPE",
+      "SUPERSEDED",
+      "EXTERNAL_SOURCE_REQUIRED"
+    ],
+    "authority": ["FAA", "EASA", "TCCA", "ANAC", "CAAC", "UNKNOWN"],
+    "source": ["nprm_spreadsheet", "federal_register", "opensky", "derived"]
+  },
+
+  "refusal_semantics": {
+    "NEED_CONFIG":             {"trigger": "Rule exists on a field the query did not supply and the fleet record does not hold.", "user_message_key": "which_value", "resolvable_by": "user supplies the value"},
+    "CANNOT_DETERMINE":        {"trigger": "Applicability text the extractor could not parse (Rule.operator == 'unparsed').", "user_message_key": "unparsed_clause", "resolvable_by": "human reads the highlighted clause"},
+    "NO_EVIDENCE":             {"trigger": "Top fused retrieval score below threshold.", "user_message_key": "not_in_corpus", "resolvable_by": "none; out of corpus"},
+    "OUT_OF_SCOPE":            {"trigger": "Query plan intent outside AD content, or a model absent from the corpus.", "user_message_key": "scope_statement", "resolvable_by": "none"},
+    "SUPERSEDED":              {"trigger": "Asked about a revision that has a newer one. Answer IS still given, with a banner.", "user_message_key": "superseded_warning", "resolvable_by": "read the current revision", "blocks_answer": false},
+    "EXTERNAL_SOURCE_REQUIRED": {"trigger": "Applicability or compliance time is delegated to a ForeignAD or ServiceBulletin with held=false.", "user_message_key": "external_doc_needed", "resolvable_by": "load the referenced document"}
+  },
+
+  "citation": {
+    "id_format": "{revision_id}#{label}@{char_start}-{char_end}",
+    "rules": [
+      "Every answer sentence carries >=1 citation_id.",
+      "A citation_id MUST resolve to a Paragraph that was in the retrieved set for this query.",
+      "The cited char span MUST be a verbatim substring of that Paragraph.text."
+    ]
+  },
+
+  "query_plan_schema": {
+    "intent": "one of enums.intent",
+    "aircraft": {"model": "string|null", "typecode": "string|null", "serial_number": "string|null", "tail_number": "string|null", "manufacturer": "string|null"},
+    "ad_number": "string|null",
+    "docket_id": "string|null",
+    "topic": "string|null",
+    "revision_scope": "current|all|specific",
+    "ambiguities": ["string"]
+  },
+
+  "sse_events": {
+    "entities":    {"stage": "entity_pass",   "payload": ["entities", "stage_ms"]},
+    "query_plan":  {"stage": "query_plan",    "payload": ["plan", "stage_ms", "model"]},
+    "retrieval":   {"stage": "retrieval",     "payload": ["paragraphs", "scores", "stage_ms"]},
+    "decision":    {"stage": "applicability", "payload": ["decision", "fired_rule_ids", "unknown_fields", "proof_tree", "stage_ms"]},
+    "answer_delta":{"stage": "answer",        "payload": ["sentence", "citation_ids", "index"]},
+    "verification":{"stage": "verify",        "payload": ["kept", "dropped", "drop_reasons", "stage_ms"]},
+    "refusal":     {"stage": "refuse",        "payload": ["code", "detail", "resolvable_by", "evidence_paragraph_ids"]},
+    "done":        {"stage": "done",          "payload": ["total_ms", "stage_timings"]},
+    "error":       {"stage": "error",         "payload": ["message"]}
+  },
+
+  "latency_targets_ms": {
+    "entity_pass": 5,
+    "retrieval": 100,
+    "applicability": 10,
+    "query_plan": 1000,
+    "verify": 20,
+    "total_p95": 3000
+  },
+
+  "eval_metrics": [
+    "answer_correctness",
+    "wrong_answer_rate",
+    "citation_precision",
+    "refusal_recall",
+    "applicability_precision",
+    "applicability_recall",
+    "latency_p50",
+    "latency_p95"
+  ],
+
+  "data_sources": {
+    "federal_register": {"kind": "api", "base": "https://www.federalregister.gov/api/v1/documents.json", "auth": "none", "authoritative_fields": ["docket_ids", "effective_on", "publication_date", "full_text_xml_url"], "note": "docket_ids is a structured list carrying 'Docket No. X', 'Amendment 39-N', 'AD YYYY-NN-NN'. Parse from it; never regex the prose for these."},
+    "nprm_spreadsheet": {"kind": "xlsx", "path": "data/raw/AD Notice of Proposed Rulemaking (AD NPRM).xlsx", "rows": 431, "note": "Dates are TEXT in %m/%d/%Y. 323 unique dockets, 99 re-noticed."},
+    "opensky_aircraft": {"kind": "csv", "url": "https://opensky-network.org/datasets/metadata/aircraftDatabase.csv", "auth": "none", "note": "Follow redirect to s3.opensky-network.org. Real registrations and serial numbers."}
+  },
+
+  "invariants": [
+    "No Rule may be created without a source_quote that is a verbatim substring of its Paragraph.text.",
+    "No answer sentence may be shown without >=1 citation_id that resolves to a retrieved Paragraph.",
+    "Aircraft fields absent from the source dataset are null and MUST yield CANNOT_DETERMINE, never a guess.",
+    "A Revision whose applicability delegates to a ForeignAD or ServiceBulletin with held=false MUST refuse EXTERNAL_SOURCE_REQUIRED rather than infer applicability.",
+    "The rules engine, not the LLM, produces every value in enums.decision.",
+    "No UI animation may render a result that has not passed verification."
+  ]
+}

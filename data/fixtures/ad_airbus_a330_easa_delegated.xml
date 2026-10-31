@@ -1,0 +1,213 @@
+<RULE>
+            <PREAMB>
+                <AGENCY TYPE="S">DEPARTMENT OF TRANSPORTATION</AGENCY>
+                <SUBAGY>Federal Aviation Administration</SUBAGY>
+                <CFR>14 CFR Part 39</CFR>
+                <DEPDOC>[Docket No. FAA-2026-8782; Project Identifier MCAI-2025-01560-T; Amendment 39-23504; AD 2026-22-02]</DEPDOC>
+                <RIN>RIN 2120-AA64</RIN>
+                <SUBJECT>Airworthiness Directives; Airbus SAS Airplanes</SUBJECT>
+                <AGY>
+                    <HD SOURCE="HED">AGENCY:</HD>
+                    <P>Federal Aviation Administration (FAA), DOT.</P>
+                </AGY>
+                <ACT>
+                    <HD SOURCE="HED">ACTION:</HD>
+                    <P>Final rule.</P>
+                </ACT>
+                <SUM>
+                    <HD SOURCE="HED">SUMMARY:</HD>
+                    <P>The FAA is adopting a new airworthiness directive (AD) for certain Airbus SAS Model A330-941 airplanes. This AD was prompted by an occurrence of a triple “PRIM FAULT” in the Flight Control Primary Computer (FCPC) at touchdown. This AD requires the installation of a new FCPC standard and applicable concurrent modifications. This AD also prohibits the installation of certain parts. The FAA is issuing this AD to address the unsafe condition on these products.</P>
+                </SUM>
+                <EFFDATE>
+                    <HD SOURCE="HED">DATES:</HD>
+                    <P>This AD is effective December 1, 2026. The Director of the Federal Register approved the incorporation by reference of a certain publication listed in this AD as of December 1, 2026.</P>
+                </EFFDATE>
+                <ADD>
+                    <HD SOURCE="HED">ADDRESSES:</HD>
+                    <P/>
+                    <P>
+                        <E T="03">AD Docket:</E>
+                         You may examine the AD docket at 
+                        <E T="03">regulations.gov</E>
+                         under Docket No. FAA-2026-8782; or in person at Docket Operations between 9 a.m. and 5 p.m., Monday through Friday, except Federal holidays. The AD docket contains this final rule, the mandatory continuing airworthiness information (MCAI), any comments received, and other information. The address for Docket Operations is U.S. Department of Transportation, Docket Operations, M-30, West Building Ground Floor, Room W12-140, 1200 New Jersey Avenue SE, Washington, DC 20590.
+                    </P>
+                    <P>
+                        <E T="03">Material Incorporated by Reference:</E>
+                    </P>
+                    <P>
+                        • For European Union Aviation Safety Agency (EASA) material identified in this AD, contact EASA, Konrad-Adenauer-Ufer 3, 50668 Cologne, Germany; telephone +49 221 8999 000; email 
+                        <E T="03">ADs@easa.europa.eu.</E>
+                         You may find this material on the EASA website at 
+                        <E T="03">ad.easa.europa.eu.</E>
+                    </P>
+                    <P>
+                        • You may view this material at the FAA, Airworthiness Products Section, Operational Safety Branch, 2200 South 216th St., Des Moines, WA. For information on the availability of this material at the FAA, call 206-231-3195. It is also available at 
+                        <E T="03">regulations.gov</E>
+                         under Docket No. FAA-2026-8782.
+                    </P>
+                </ADD>
+                <FURINF>
+                    <HD SOURCE="HED">FOR FURTHER INFORMATION CONTACT:</HD>
+                    <P>
+                        Frank Carreras, Aviation Safety Engineer, FAA, 2200 South 216th St., Des Moines, WA 98198; phone: 206-231-3539; email: 
+                        <E T="03">frank.carreras@faa.gov.</E>
+                    </P>
+                </FURINF>
+            </PREAMB>
+            <SUPLINF>
+                <HD SOURCE="HED">SUPPLEMENTARY INFORMATION:</HD>
+                <HD SOURCE="HD1">Background</HD>
+                <P>
+                    The FAA issued a notice of proposed rulemaking (NPRM) to amend 14 CFR part 39 by adding an AD that would apply to certain Airbus SAS Model A330-941 airplanes. The NPRM was published in the 
+                    <E T="04">Federal Register</E>
+                     on August 19, 2026 (91 FR 53542). The NPRM was prompted by EASA AD 2025-0208, dated September 24, 2025 (EASA AD 2025-0208) (also referred to as the MCAI), issued by EASA, which is the Technical Agent for the Member States of the European Union. The MCAI states an occurrence was reported of a triple “PRIM FAULT” at touchdown, leading to the loss of ground spoilers, thrust reversers, and autobrake. An investigation determined the root cause was an undue triggering of the rudder order “COM/MON” monitoring in the three FCPCs. This condition, if not corrected, could result in the loss of autobrake and thrust reversers, possibly resulting in reduced control of the airplane. Airbus issued instructions for the installation of a new FCPC standard.
+                </P>
+                <P>In the NPRM, the FAA proposed to require the installation of a new FCPC standard and applicable concurrent modifications as specified in EASA AD 2025-0208. The NPRM also proposed to prohibit the installation of certain parts, as specified in EASA AD 2025-0208. The FAA is issuing this AD to address the unsafe condition on these products.</P>
+                <P>
+                    You may examine the MCAI in the AD docket at 
+                    <E T="03">regulations.gov</E>
+                     under Docket No. FAA-2026-8782.
+                </P>
+                <HD SOURCE="HD1">Discussion of Final Airworthiness Directive</HD>
+                <HD SOURCE="HD1">Comments</HD>
+                <P>The FAA received a comment from Air Line Pilots Association, International (ALPA) who supported the NPRM without change.</P>
+                <HD SOURCE="HD1">Conclusion</HD>
+                <P>These products have been approved by the civil aviation authority of another country and are approved for operation in the United States. Pursuant to the FAA's bilateral agreement with this State of Design Authority, that authority has notified the FAA of the unsafe condition described in the MCAI referenced above. The FAA reviewed the relevant data, considered any comments received, and determined that air safety requires adopting this AD as proposed. Accordingly, the FAA is issuing this AD to address the unsafe condition on these products. Except for minor editorial changes, this AD is adopted as proposed in the NPRM. None of the changes will increase the economic burden on any operator.</P>
+                <HD SOURCE="HD1">Material Incorporated by Reference Under 1 CFR Part 51</HD>
+                <P>
+                    EASA AD 2025-0208 specifies procedures for the installation of a new FCPC standard by replacing the FCPCs, replacing the FCPC on board replaceable module (OBRMs), or reprogramming the FCPC OBRMs. EASA AD 2025-0208 further specifies that applicable concurrent modifications to the FCPC must be done (
+                    <E T="03">i.e.,</E>
+                     FCPC, flight management, guidance and envelope computer (FMGEC), flight warning computer (FWC), and electronic instrument system (EIS) standard upgrades). EASA AD 2025-0208 also specifies parts installation restrictions allowing installation of only a serviceable FCPC.
+                </P>
+                <P>
+                    This material is reasonably available because the interested parties have access to it through their normal course of business or by the means identified in the 
+                    <E T="02">ADDRESSES</E>
+                     section.
+                </P>
+                <HD SOURCE="HD1">Costs of Compliance</HD>
+                <P>
+                    The FAA estimates that this AD affects 39 airplanes of U.S. registry. The FAA estimates the following costs to comply with this AD:
+                    <PRTPAGE P="67456"/>
+                </P>
+                <GPOTABLE COLS="4" OPTS="L2,nj,i1" CDEF="s100,r50,r50,r50">
+                    <TTITLE>Estimated Costs for Required Actions</TTITLE>
+                    <BOXHD>
+                        <CHED H="1">Labor cost</CHED>
+                        <CHED H="1">Parts cost</CHED>
+                        <CHED H="1">Cost per product</CHED>
+                        <CHED H="1">Cost on U.S. operators</CHED>
+                    </BOXHD>
+                    <ROW>
+                        <ENT I="01">Up to 23 work-hours × $85 per hour = $1,955</ENT>
+                        <ENT>Up to $7,542</ENT>
+                        <ENT>Up to $9,497</ENT>
+                        <ENT>Up to $370,383.</ENT>
+                    </ROW>
+                </GPOTABLE>
+                <HD SOURCE="HD1">Authority for This Rulemaking</HD>
+                <P>Title 49 of the United States Code specifies the FAA's authority to issue rules on aviation safety. Subtitle I, section 106, describes the authority of the FAA Administrator. Subtitle VII: Aviation Programs, describes in more detail the scope of the Agency's authority.</P>
+                <P>The FAA is issuing this rulemaking under the authority described in Subtitle VII, Part A, Subpart III, Section 44701: General requirements. Under that section, Congress charges the FAA with promoting safe flight of civil aircraft in air commerce by prescribing regulations for practices, methods, and procedures the Administrator finds necessary for safety in air commerce. This regulation is within the scope of that authority because it addresses an unsafe condition that is likely to exist or develop on products identified in this rulemaking action.</P>
+                <HD SOURCE="HD1">Regulatory Findings</HD>
+                <P>This AD will not have federalism implications under Executive Order 13132. This AD will not have a substantial direct effect on the States, on the relationship between the national government and the States, or on the distribution of power and responsibilities among the various levels of government.</P>
+                <P>For the reasons discussed above, I certify that this AD:</P>
+                <P>(1) Is not a “significant regulatory action” under Executive Order 12866,</P>
+                <P>(2) Will not affect intrastate aviation in Alaska, and</P>
+                <P>(3) Will not have a significant economic impact, positive or negative, on a substantial number of small entities under the criteria of the Regulatory Flexibility Act.</P>
+                <LSTSUB>
+                    <HD SOURCE="HED">List of Subjects in 14 CFR Part 39</HD>
+                    <P>Air transportation, Aircraft, Aviation safety, Incorporation by reference, Safety.</P>
+                </LSTSUB>
+                <HD SOURCE="HD1">The Amendment</HD>
+                <P>Accordingly, under the authority delegated to me by the Administrator, the FAA amends 14 CFR part 39 as follows:</P>
+                <PART>
+                    <HD SOURCE="HED">PART 39—AIRWORTHINESS DIRECTIVES</HD>
+                </PART>
+                <REGTEXT TITLE="14" PART="39">
+                    <AMDPAR>1. The authority citation for part 39 continues to read as follows:</AMDPAR>
+                    <AUTH>
+                        <HD SOURCE="HED">Authority:</HD>
+                        <P> 49 U.S.C. 106(g), 40113, 44701.</P>
+                    </AUTH>
+                </REGTEXT>
+                <SECTION>
+                    <SECTNO>§ 39.13 </SECTNO>
+                    <SUBJECT>[Amended]</SUBJECT>
+                </SECTION>
+                <REGTEXT TITLE="14" PART="39">
+                    <AMDPAR>2. The FAA amends § 39.13 by adding the following new airworthiness directive:</AMDPAR>
+                    <EXTRACT>
+                        <FP SOURCE="FP-2">
+                            <E T="04">2026-22-02 Airbus SAS:</E>
+                             Amendment 39-23504; Docket No. FAA-2026-8782; Project Identifier MCAI-2025-01560-T.
+                        </FP>
+                        <HD SOURCE="HD1">(a) Effective Date</HD>
+                        <P>This airworthiness directive (AD) is effective December 1, 2026.</P>
+                        <HD SOURCE="HD1"> (b) Affected ADs</HD>
+                        <P>None.</P>
+                        <HD SOURCE="HD1"> (c) Applicability</HD>
+                        <P>This AD applies to Airbus SAS Model A330-941 airplanes, certificated in any category, as identified in European Union Aviation Safety Agency (EASA) AD 2025-0208, dated September 24, 2025 (EASA AD 2025-0208).</P>
+                        <HD SOURCE="HD1"> (d) Subject</HD>
+                        <P>Air Transport Association (ATA) of America Code 27, Flight controls.</P>
+                        <HD SOURCE="HD1"> (e) Unsafe Condition</HD>
+                        <P>This AD was prompted by an occurrence of a triple “PRIM FAULT” at touchdown, leading to loss of ground spoilers, thrust reversers, and autobrake. The FAA is issuing this AD to update the Flight Control Primary Computer (FCPC) standard, which if not addressed, could result in the loss of autobrake and thrust reversers, possibly resulting in reduced control of the airplane.</P>
+                        <HD SOURCE="HD1"> (f) Compliance</HD>
+                        <P>Comply with this AD within the compliance times specified, unless already done.</P>
+                        <HD SOURCE="HD1"> (g) Requirements</HD>
+                        <P>Except as specified in paragraph (h) of this AD: Comply with all required actions and compliance times specified in, and in accordance with, EASA AD 2025-0208.</P>
+                        <HD SOURCE="HD1"> (h) Exceptions to EASA AD 2025-0208</HD>
+                        <P>(1) Where EASA AD 2025-0208 refers to its effective date, this AD requires using the effective date of this AD.</P>
+                        <P>(2) This AD does not adopt the “Remarks” section of EASA AD 2025-0208.</P>
+                        <HD SOURCE="HD1"> (i) Additional AD Provisions</HD>
+                        <P>The following provisions also apply to this AD:</P>
+                        <P>
+                            (1) 
+                            <E T="03">Alternative Methods of Compliance (AMOCs):</E>
+                             The Manager, AIR-520, Continued Operational Safety Branch, FAA, has the authority to approve AMOCs for this AD, if requested using the procedures found in 14 CFR 39.19. In accordance with 14 CFR 39.19, send your request to your principal inspector or responsible Flight Standards Office, as appropriate. If sending information directly to the manager of the Continued Operational Safety Branch, send it to the attention of the person identified in paragraph (j) of this AD and email to: 
+                            <E T="03">AMOC@faa.gov</E>
+                            . Before using any approved AMOC, notify your appropriate principal inspector, or lacking a principal inspector, the manager of the responsible Flight Standards Office.
+                        </P>
+                        <P>
+                            (2) 
+                            <E T="03">Contacting the Manufacturer:</E>
+                             For any requirement in this AD to obtain instructions from a manufacturer, the instructions must be accomplished using a method approved by the Manager, AIR-520, Continued Operational Safety Branch, FAA; or EASA; or Airbus SAS's EASA Design Organization Approval (DOA). If approved by the DOA, the approval must include the DOA-authorized signature.
+                        </P>
+                        <P>
+                            (3) 
+                            <E T="03">Required for Compliance (RC):</E>
+                             Except as required by paragraph (i)(2) of this AD, if any material contains procedures or tests that are identified as RC, those procedures and tests must be done to comply with this AD; any procedures or tests that are not identified as RC are recommended. Those procedures and tests that are not identified as RC may be deviated from using accepted methods in accordance with the operator's maintenance or inspection program without obtaining approval of an AMOC, provided the procedures and tests identified as RC can be done and the airplane can be put back in an airworthy condition. Any substitutions or changes to procedures or tests identified as RC require approval of an AMOC.
+                        </P>
+                        <HD SOURCE="HD1"> (j) Additional Information</HD>
+                        <P>
+                            For more information about this AD, contact Frank Carreras, Aviation Safety Engineer, FAA, 2200 South 216th St., Des Moines, WA 98198; phone: 206-231-3539; email: 
+                            <E T="03">frank.carreras@faa.gov.</E>
+                        </P>
+                        <HD SOURCE="HD1"> (k) Material Incorporated by Reference</HD>
+                        <P>(1) The Director of the Federal Register approved the incorporation by reference of the material listed in this paragraph under 5 U.S.C. 552(a) and 1 CFR part 51.</P>
+                        <P>(2) You must use this material as applicable to do the actions required by this AD, unless this AD specifies otherwise.</P>
+                        <P>(i) European Union Aviation Safety Agency (EASA) AD 2025-0208, dated September 24, 2025.</P>
+                        <P>(ii) [Reserved]</P>
+                        <P>
+                            (3) For EASA material identified in this AD, contact EASA, Konrad-Adenauer-Ufer 3, 50668 Cologne, Germany; telephone +49 221 8999 000; email 
+                            <E T="03">ADs@easa.europa.eu.</E>
+                             You may find this material on the EASA website at 
+                            <E T="03">ad.easa.europa.eu.</E>
+                            <PRTPAGE P="67457"/>
+                        </P>
+                        <P>(4) You may view this material at the FAA, Airworthiness Products Section, Operational Safety Branch, 2200 South 216th St., Des Moines, WA. For information on the availability of this material at the FAA, call 206-231-3195.</P>
+                        <P>
+                            (5) You may view this material at the National Archives and Records Administration (NARA). For information on the availability of this material at NARA, visit 
+                            <E T="03">www.archives.gov/federal-register/cfr/ibr-locations</E>
+                             or email 
+                            <E T="03">fr.inspection@nara.gov.</E>
+                        </P>
+                    </EXTRACT>
+                </REGTEXT>
+                <SIG>
+                    <DATED>Issued on October 21, 2026.</DATED>
+                    <NAME>Lona C. Saccomando,</NAME>
+                    <TITLE>Acting Deputy Director, Integrated Certificate Management Division, Aircraft Certification Service.</TITLE>
+                </SIG>
+            </SUPLINF>
+            <FRDOC>[FR Doc. 2026-21861 Filed 10-26-26; 8:45 am]</FRDOC>
+            <BILCOD>BILLING CODE 4910-13-P</BILCOD>
+        </RULE>

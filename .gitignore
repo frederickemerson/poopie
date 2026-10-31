@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+.next/
+.venv/
+data/raw/fr_ad/*.xml
+data/raw/fleet/*.csv
+data/build/*.jsonl
+data/build/*.db
+data/build/*.npy
+.env
