@@ -30,8 +30,10 @@ from engine.graph.stage import (  # noqa: E402
     PROPOSED,
     SOURCE_KIND_NPRM,
     SOURCE_KIND_REVISION,
+    SOURCE_KIND_USER_DOCUMENT,
     revision_stage,
 )
+from engine.ingest import user_documents as user_docs  # noqa: E402
 from engine.retrieval.layout import (  # noqa: E402
     CorpusPaths,
     CorpusUnavailable,
@@ -78,6 +80,9 @@ class Paragraph:
     ad_number: str | None = None
     is_current_revision: bool = True
     nprm_id: str | None = None
+    #: Set only for a paragraph of a document the user loaded. Mutually
+    #: exclusive with revision_id and nprm_id; source_kind says which is set.
+    user_document_id: str | None = None
     source_kind: str = SOURCE_KIND_REVISION
     document_stage: str = "UNKNOWN"
     #: For a proposal: the organizers' record_id and the printed citation, which
@@ -88,12 +93,27 @@ class Paragraph:
 
     @property
     def document_id(self) -> str:
-        """The parent document's id -- revision_id, or nprm_id for a proposal."""
-        return str(self.revision_id or self.nprm_id)
+        """The parent document's id: revision_id, nprm_id or user_document_id."""
+        return str(self.revision_id or self.nprm_id or self.user_document_id)
 
     @property
     def is_proposal(self) -> bool:
         return self.source_kind == SOURCE_KIND_NPRM
+
+    @property
+    def is_user_document(self) -> bool:
+        return self.source_kind == SOURCE_KIND_USER_DOCUMENT
+
+    @property
+    def is_adopted_revision(self) -> bool:
+        """Whether this paragraph belongs to an adopted ``Revision``.
+
+        The positive form of the question the retrieval scope asks. Code used to
+        ask "is it a proposal, or is it the current revision", which silently
+        meant "and nothing else exists"; a user document is neither, and with
+        two kinds the disjunction happened to be right for the wrong reason.
+        """
+        return self.source_kind == SOURCE_KIND_REVISION
 
     @property
     def citation_id(self) -> str:
@@ -136,6 +156,28 @@ class NPRMMeta:
     supersedes_ad: str | None
 
 
+@dataclass(frozen=True)
+class UserDocumentMeta:
+    """Document-level facts a hit on a user-loaded document needs to be citable.
+
+    Deliberately short. There is no ``fr_citation``, no ``page_range`` and no
+    ``ad_number``, because this engine holds none of those for a document a user
+    handed it, and a field that exists is a field something will eventually
+    print. ``document_stage`` is the uploader's claim and is labelled as such
+    wherever it is rendered.
+    """
+
+    user_document_id: str
+    title: str
+    authority: str
+    document_stage: str
+    uploaded_at: str | None
+    source_filename: str | None
+    media_type: str | None
+    content_sha256: str | None
+    source_bytes: int | None
+
+
 @dataclass
 class Corpus:
     """Paragraphs in a fixed order plus the graph that filters them.
@@ -152,8 +194,14 @@ class Corpus:
     ad_numbers: dict[str, str]
     plain_text: dict[str, str]
     nprms: dict[str, NPRMMeta] = field(default_factory=dict)
+    #: Documents the user loaded, keyed by user_document_id. Empty unless this
+    #: corpus was loaded or extended with them; see ``extend_corpus``.
+    user_documents: dict[str, UserDocumentMeta] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        self._reindex()
+
+    def _reindex(self) -> None:
         self.by_id = {p.paragraph_id: p for p in self.paragraphs}
         self.row_of = {p.paragraph_id: i for i, p in enumerate(self.paragraphs)}
 
@@ -210,9 +258,22 @@ def _endpoint(record: dict, keys: tuple[str, ...], path: Path) -> str:
 
 
 def load_corpus(
-    paths: CorpusPaths | None = None, *, prefer_fixture: bool = False
+    paths: CorpusPaths | None = None,
+    *,
+    prefer_fixture: bool = False,
+    include_user_documents: bool = False,
 ) -> Corpus:
-    """Read paragraphs, nodes and edges into a Corpus. Raises if any is absent."""
+    """Read paragraphs, nodes and edges into a Corpus. Raises if any is absent.
+
+    ``include_user_documents`` unions in whatever is in
+    ``data/user_documents``. It defaults to **False**, and that default is
+    load-bearing: the shipped retrieval index is fingerprinted against this
+    exact paragraph list, so a corpus that silently grew when a user uploaded
+    something would make ``load_index`` refuse to open a perfectly good index.
+    The server loads the shipped corpus, opens the shipped index against it,
+    and only then calls ``extend_corpus`` -- so the fingerprint check still
+    means what it says, and the extension is a step that can be reported.
+    """
     paths = paths or default_corpus_paths(prefer_fixture=prefer_fixture)
 
     para_records = _read_jsonl(paths.paragraphs, what="paragraphs")
@@ -360,6 +421,8 @@ def load_corpus(
 
     paragraphs.extend(_load_nprm_paragraphs(paths, nprms))
 
+    user_documents: dict[str, UserDocumentMeta] = {}
+
     # Paragraphs live in their own files, not in nodes.jsonl, so NetworkX only
     # ever saw them as auto-created edge endpoints with no attributes. Declare
     # them here -- add_node on an existing node updates it rather than
@@ -383,7 +446,7 @@ def load_corpus(
         for rec in _read_jsonl(paths.nprm_text, what="nprm_text"):
             plain_text[rec["nprm_id"]] = rec.get("plain_text") or ""
 
-    return Corpus(
+    corpus = Corpus(
         kind=paths.kind,
         paragraphs=paragraphs,
         graph=graph,
@@ -391,7 +454,121 @@ def load_corpus(
         ad_numbers={ad: (make or "") for ad, make in ad_make.items()},
         plain_text=plain_text,
         nprms=nprms,
+        user_documents=user_documents,
     )
+    if include_user_documents:
+        extend_corpus(corpus, user_docs.load())
+    return corpus
+
+
+def user_document_meta(node: dict) -> UserDocumentMeta:
+    """A ``UserDocumentMeta`` from a contract ``UserDocument`` node."""
+    return UserDocumentMeta(
+        user_document_id=str(node["user_document_id"]),
+        title=str(node.get("title") or node["user_document_id"]),
+        authority=str(node.get("authority") or "not stated"),
+        document_stage=str(node.get("document_stage") or "UNKNOWN"),
+        uploaded_at=node.get("uploaded_at"),
+        source_filename=node.get("source_filename"),
+        media_type=node.get("media_type"),
+        content_sha256=node.get("content_sha256"),
+        source_bytes=node.get("source_bytes"),
+    )
+
+
+def user_paragraph(record: dict) -> Paragraph:
+    """A ``Paragraph`` from a contract Paragraph node parented on a user document.
+
+    ``document_stage`` is taken from the record because it is what the uploader
+    declared and there is nothing authoritative to recompute it from -- unlike a
+    Revision, whose stage is a function of ``effective_on`` and today's date. It
+    is powerless either way: ``may_establish_obligation`` admits REVISION only,
+    so a paragraph declared EFFECTIVE by its uploader still cannot carry an
+    obligation.
+    """
+    document_id = record.get("user_document_id")
+    if not document_id:
+        raise ValueError(
+            f"paragraph {record.get('paragraph_id')!r} has no user_document_id"
+        )
+    return Paragraph(
+        paragraph_id=record["paragraph_id"],
+        revision_id=None,
+        label=record["label"],
+        role=record["role"],
+        heading=record.get("heading") or "",
+        text=record["text"],
+        char_start=int(record["char_start"]),
+        char_end=int(record["char_end"]),
+        ordinal=int(record.get("ordinal") or 0),
+        ad_number=None,
+        is_current_revision=False,
+        nprm_id=None,
+        user_document_id=str(document_id),
+        source_kind=SOURCE_KIND_USER_DOCUMENT,
+        document_stage=record.get("document_stage") or "UNKNOWN",
+        # No record_id, no fr_citation, no page_range. This engine holds none of
+        # them for a user document, and the citation layer reports each of them
+        # "not recorded" rather than printing a plausible value.
+        record_id=None,
+        fr_citation=None,
+        page_range=None,
+    )
+
+
+def extend_corpus(corpus: Corpus, store) -> dict[str, object]:
+    """Append a loaded user-document store to a corpus already in memory.
+
+    Appends, never inserts: row *i* of the retrieval index is ``paragraphs[i]``,
+    so the only safe place to add a paragraph to a live corpus is the end. A
+    document already present is skipped rather than appended twice, which makes
+    this idempotent and safe to call on every startup.
+
+    Returns a report. Mutating a loaded corpus is a real thing to be able to
+    audit, so the caller gets told what happened rather than having to diff
+    lengths.
+    """
+    added_documents: list[str] = []
+    added_paragraphs: list[Paragraph] = []
+    skipped: list[str] = []
+    for document in store.documents:
+        document_id = document.user_document_id
+        if document_id in corpus.user_documents:
+            skipped.append(document_id)
+            continue
+        meta = user_document_meta(document.node)
+        corpus.user_documents[document_id] = meta
+        corpus.plain_text[document_id] = document.plain_text
+        corpus.graph.add_node(
+            document_id,
+            ntype="UserDocument",
+            title=meta.title,
+            authority=meta.authority,
+            document_stage=meta.document_stage,
+        )
+        for record in document.paragraphs:
+            paragraph = user_paragraph(record)
+            if paragraph.paragraph_id in corpus.by_id:
+                continue
+            added_paragraphs.append(paragraph)
+            corpus.graph.add_node(
+                paragraph.paragraph_id,
+                ntype="Paragraph",
+                source_kind=paragraph.source_kind,
+                document_stage=paragraph.document_stage,
+                document_id=paragraph.document_id,
+                role=paragraph.role,
+            )
+        added_documents.append(document_id)
+
+    corpus.paragraphs.extend(added_paragraphs)
+    corpus._reindex()
+    return {
+        "documents_added": added_documents,
+        "documents_already_loaded": skipped,
+        "paragraphs_added": [p.paragraph_id for p in added_paragraphs],
+        "orphan_paragraphs": list(getattr(store, "orphan_paragraphs", []) or []),
+    }
 
 
 def _revision_paragraph_stage(rec: dict, meta: RevisionMeta | None) -> str:

@@ -17,20 +17,28 @@ from collections.abc import Iterable, Iterator
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
-from contracts.contract import validate_event
+from contracts.contract import enum, validate_event
 from engine.api.answer import build_envelope, write_answer
 from engine.api.applicability import ApplicabilityStore, decide_for_query, fleet_matrix
 from engine.api.citations import EMPTY_BOOK, ReferenceBook, page_report, resolver_for
-from engine.graph.stage import annotate
+from engine.api.library import Library
+from engine.graph.stage import annotate, split_obligation_evidence
+from engine.ingest.user_parse import (
+    MAX_UPLOAD_BYTES,
+    MEDIA_TYPES,
+    UploadRejected,
+)
 from engine.llm.client import LLMClient, LLMUnavailable, have_api_key
 from engine.llm.ledger import CostLedger, default_cap_usd
 from engine.retrieval.corpus import load_corpus
 from engine.retrieval.entities import extract_entities
+from engine.retrieval.graph_filter import DEFAULT_SOURCE_KINDS, EVERY_SOURCE_KIND
 from engine.retrieval.layout import default_corpus_paths
 from engine.retrieval.index import load_index
 from engine.retrieval.plan import plan_query
@@ -38,6 +46,17 @@ from engine.retrieval.search import search
 from engine.verify.gate import evaluate_gate
 from engine.verify.refusals import resolvable_by as refusal_resolver
 from engine.verify.verifier import verify
+
+#: What the library listing tells the UI it may send. Read from the places that
+#: enforce them, so a form cannot offer a value the engine will refuse.
+_UPLOAD_MEDIA_TYPES = tuple(MEDIA_TYPES)
+_DOCUMENT_STAGES = tuple(enum("document_stage"))
+
+#: Ceiling on the whole upload request body. The document itself is capped at
+#: MAX_UPLOAD_BYTES by engine.ingest.user_parse; this is the envelope around it,
+#: checked before the body is read into memory so an oversized request is
+#: refused rather than buffered.
+MAX_UPLOAD_REQUEST_BYTES = MAX_UPLOAD_BYTES + 64 * 1024
 
 app = FastAPI(title="AD traceability engine")
 app.add_middleware(
@@ -61,6 +80,11 @@ class _State:
     references: ReferenceBook = EMPTY_BOOK
     #: The size of the indexed corpus, which the latency target is relative to.
     corpus_size: dict[str, Any] | None = None
+    #: Documents the user loaded. None until startup has run; its own errors
+    #: are reported through /health rather than failing the whole service, since
+    #: a library that will not attach must not take the shipped corpus down.
+    library: Library | None = None
+    library_attach: dict[str, Any] | None = None
     error: str | None = None
 
 
@@ -78,8 +102,17 @@ def _startup() -> None:
         return
     # Loaded here, once, for the same reason the corpus is: a citation's
     # human reference is one dict lookup per query, never a file read.
-    STATE.references = ReferenceBook.load(paths.nodes)
-    pages = page_report(STATE.references, source=str(paths.nodes))
+    references = ReferenceBook.load(paths.nodes)
+    pages = page_report(references, source=str(paths.nodes))
+    # The library is attached AFTER the shipped index has been opened and
+    # checked against the shipped corpus, so the fingerprint check still means
+    # what it says. It then appends to both, in that order, and reports it.
+    STATE.library = Library(STATE.corpus, STATE.index, references)
+    try:
+        STATE.library_attach = STATE.library.attach()
+    except Exception as exc:  # a bad library must not take the corpus down
+        STATE.library_attach = {"error": f"{type(exc).__name__}: {exc}"}
+    STATE.references = STATE.library.references
     STATE.corpus_size = {
         "kind": paths.kind,
         "paragraphs": len(STATE.corpus.paragraphs),
@@ -177,9 +210,32 @@ def _sse(name: str, payload: dict[str, Any]) -> str:
 class Query(BaseModel):
     q: str
     tail_number: str | None = None
+    #: Widen retrieval to the documents the user loaded. Off by default; see
+    #: engine.retrieval.graph_filter for why that default is not a nicety. Even
+    #: when on, a user document can appear in the retrieval trace and never in
+    #: the answer: split_obligation_evidence removes it before the writer.
+    include_user_documents: bool = False
 
 
-def _stream(q: str, tail_number: str | None) -> Iterator[str]:
+class LibraryUpload(BaseModel):
+    """One document, as text. See ``POST /library/documents``."""
+
+    title: str
+    authority: str
+    document_stage: str
+    content: str
+    filename: str | None = None
+    media_type: str | None = None
+
+
+class LibraryQuery(BaseModel):
+    q: str
+    k: int = 8
+
+
+def _stream(
+    q: str, tail_number: str | None, *, include_user_documents: bool = False
+) -> Iterator[str]:
     if STATE.error or STATE.corpus is None or STATE.index is None:
         yield _sse("error", {"message": STATE.error or "corpus not loaded"})
         return
@@ -216,6 +272,9 @@ def _stream(q: str, tail_number: str | None) -> Iterator[str]:
         STATE.index, q, entities,
         k=8,
         revision_scope=(getattr(plan, "revision_scope", None) or "current"),
+        source_kinds=(
+            EVERY_SOURCE_KIND if include_user_documents else DEFAULT_SOURCE_KINDS
+        ),
     )
     timings["retrieval"] = (time.perf_counter() - t0) * 1000
     # One resolver for this query: it closes over the retrieved paragraphs, so
@@ -274,10 +333,42 @@ def _stream(q: str, tail_number: str | None) -> Iterator[str]:
     engine_refusal = outcome.decision.refusal_payload() if outcome.available else None
     if engine_refusal and not any(r["code"] == engine_refusal["code"] for r in refusals):
         refusals.append(engine_refusal)
+
+    # **The writer only ever sees evidence that may carry an obligation.**
+    # With the default retrieval scope every hit is an adopted revision and this
+    # partitions to everything-eligible, so it changes nothing there. It is the
+    # fence for the scopes that are opt-in: a proposal or a document the user
+    # loaded can be retrieved, shown and cited in the trace above, and still
+    # cannot reach the model that writes "you must". The writer's own prompt
+    # calls its inputs "paragraphs retrieved from adopted FAA ADs", and the
+    # verifier only checks that a quote is verbatim in a retrieved paragraph --
+    # so nothing downstream would catch this, and it has to hold here.
+    admissible, set_aside = split_obligation_evidence(list(result.hits))
+    no_admissible_evidence = bool(result.hits) and not admissible
+    if no_admissible_evidence:
+        kinds = sorted({str(p.get("source_kind")) for p in set_aside})
+        refusals.append(
+            {
+                "code": "NO_EVIDENCE",
+                "detail": (
+                    f"all {len(set_aside)} retrieved paragraph(s) came from "
+                    f"{', '.join(kinds)} documents, none of which may establish an "
+                    f"obligation in this engine. Nothing was written from them."
+                ),
+                "resolvable_by": refusal_resolver("NO_EVIDENCE"),
+                "evidence_paragraph_ids": [
+                    str(p.get("paragraph_id")) for p in set_aside
+                ],
+            }
+        )
     for refusal in refusals:
         yield _sse("refusal", refusal)
 
-    if not gate.answer_allowed or (engine_refusal and engine_refusal.get("code") != "SUPERSEDED"):
+    if (
+        not gate.answer_allowed
+        or no_admissible_evidence
+        or (engine_refusal and engine_refusal.get("code") != "SUPERSEDED")
+    ):
         # A refusal is a delivered answer, so it carries the same envelope an
         # answer would. Refusing without saying what was and was not
         # established, and what would resolve it, is just a dead end.
@@ -324,7 +415,7 @@ def _stream(q: str, tail_number: str | None) -> Iterator[str]:
     document_stage = stage.get("document_stage")
 
     t0 = time.perf_counter()
-    drafted = write_answer(STATE.client, q, list(result.hits), stage_note=document_stage)
+    drafted = write_answer(STATE.client, q, admissible, stage_note=document_stage)
     timings["answer"] = (time.perf_counter() - t0) * 1000
     for sentence in drafted.sentences:
         yield _sse(
@@ -416,6 +507,11 @@ def health() -> dict[str, Any]:
         "error": STATE.error,
         "spend": STATE.ledger.summary() if STATE.ledger else None,
         "corpus": STATE.corpus_size,
+        "library": (
+            {**STATE.library.as_report(), "attach": STATE.library_attach}
+            if STATE.library is not None
+            else {"error": STATE.error or "library not loaded"}
+        ),
     }
 
 
@@ -430,7 +526,114 @@ def blast(revision_id: str) -> dict[str, Any]:
 @app.post("/stream")
 def stream(query: Query) -> StreamingResponse:
     return StreamingResponse(
-        _stream(query.q, query.tail_number),
+        _stream(
+            query.q,
+            query.tail_number,
+            include_user_documents=query.include_user_documents,
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ------------------------------------------------------------------- library
+#
+# Documents the user loaded. Three endpoints, and the shape of each response
+# states what a user document is *not*: it never joins the default retrieval
+# scope, and it can never establish an obligation. That is in the payload rather
+# than in a docstring because the UI renders the payload.
+
+
+def _library_or_error() -> tuple[Library | None, JSONResponse | None]:
+    if STATE.library is None:
+        return None, JSONResponse(
+            status_code=503,
+            content={"error": STATE.error or "the engine has not finished starting"},
+        )
+    return STATE.library, None
+
+
+@app.get("/library")
+def library_list() -> Any:
+    """Every document the user has loaded, newest first."""
+    library, failure = _library_or_error()
+    if library is None:
+        return failure
+    return {
+        "documents": library.documents(),
+        "status": library.as_report(),
+        "limits": {
+            "max_bytes": MAX_UPLOAD_BYTES,
+            "media_types": sorted(_UPLOAD_MEDIA_TYPES),
+            "document_stages": list(_DOCUMENT_STAGES),
+        },
+    }
+
+
+@app.post("/library/documents")
+async def library_upload(request: Request) -> Any:
+    """Load one document.
+
+    JSON, not multipart: the body is ``{"title", "authority",
+    "document_stage", "content", "filename"}`` with the document itself as the
+    ``content`` string. One shape to validate, trivially proxied by the Next
+    route, and the size check can happen before the body is read.
+
+    The upload is never executed, never written over an existing artifact and
+    never passed to a shell. It lands in ``data/user_documents/uploads`` under a
+    name derived from its own content hash.
+    """
+    library, failure = _library_or_error()
+    if library is None:
+        return failure
+
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > MAX_UPLOAD_REQUEST_BYTES:
+        return JSONResponse(
+            status_code=413,
+            content={
+                "error": f"request body is {declared} bytes; the limit is "
+                f"{MAX_UPLOAD_REQUEST_BYTES}"
+            },
+        )
+    body = await request.body()
+    if len(body) > MAX_UPLOAD_REQUEST_BYTES:
+        return JSONResponse(
+            status_code=413,
+            content={
+                "error": f"request body is {len(body)} bytes; the limit is "
+                f"{MAX_UPLOAD_REQUEST_BYTES}"
+            },
+        )
+    try:
+        payload = LibraryUpload.model_validate_json(body)
+    except ValueError as exc:
+        return JSONResponse(
+            status_code=400, content={"error": f"the upload body is not valid: {exc}"}
+        )
+
+    try:
+        # Parsing and embedding are CPU work; off the event loop so an upload
+        # cannot stall an answer already streaming.
+        report = await run_in_threadpool(
+            library.add,
+            payload.content.encode("utf-8"),
+            title=payload.title,
+            authority=payload.authority,
+            document_stage=payload.document_stage,
+            filename=payload.filename,
+            media_type=payload.media_type,
+        )
+    except UploadRejected as exc:
+        # A refusal the uploader can act on, not a server error.
+        return JSONResponse(status_code=422, content={"error": str(exc)})
+    return report
+
+
+@app.post("/library/search")
+def library_search(query: LibraryQuery) -> Any:
+    """Search the user's own documents, and only those."""
+    library, failure = _library_or_error()
+    if library is None:
+        return failure
+    return library.search(query.q, k=query.k)

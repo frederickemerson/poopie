@@ -23,7 +23,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from engine.graph.normalize import normalize_manufacturer  # noqa: E402
-from engine.graph.stage import SOURCE_KIND_NPRM, SOURCE_KIND_REVISION  # noqa: E402
+from engine.graph.stage import (  # noqa: E402
+    SOURCE_KIND_NPRM,
+    SOURCE_KIND_REVISION,
+    SOURCE_KIND_USER_DOCUMENT,
+    may_establish_obligation,
+)
 from engine.retrieval.corpus import Corpus  # noqa: E402
 from engine.retrieval.entities import Entities  # noqa: E402
 
@@ -42,10 +47,54 @@ _AIRCRAFT_RULE_FIELDS = frozenset({"model", "typecode", "manufacturer"})
 #: So the widening is opt-in, per call, and ``FilterResult.source_kinds``
 #: records what was actually searched.
 DEFAULT_SOURCE_KINDS: tuple[str, ...] = (SOURCE_KIND_REVISION,)
-#: Every kind, for a caller that explicitly wants proposals too.
+#: Every kind of document the FAA itself published: adopted rules and proposals.
+#: Deliberately NOT widened to include user documents when that kind was added.
+#: A caller that passes this today means "the Federal Register, all of it", and
+#: quietly changing what it covers would widen every existing call site at once.
 ALL_SOURCE_KINDS: tuple[str, ...] = (SOURCE_KIND_REVISION, SOURCE_KIND_NPRM)
 #: Proposals only: "what has the FAA proposed about X", never "what must I do".
 PROPOSALS_ONLY: tuple[str, ...] = (SOURCE_KIND_NPRM,)
+#: Documents the user loaded, and nothing else. What the library search uses.
+USER_DOCUMENTS_ONLY: tuple[str, ...] = (SOURCE_KIND_USER_DOCUMENT,)
+#: Literally everything indexed. For a caller that has decided to show the user
+#: their own material beside the FAA's, with both labelled.
+EVERY_SOURCE_KIND: tuple[str, ...] = ALL_SOURCE_KINDS + USER_DOCUMENTS_ONLY
+
+#: **Why user documents are not in the default scope.**
+#:
+#: Not caution for its own sake -- two concrete reasons.
+#:
+#: First, the same reason proposals are not: an uploaded service bulletin or
+#: foreign AD uses the same vocabulary as the rule it supports ("inspect",
+#: "within 500 flight hours", "applicability"), so letting it into the default
+#: candidate set means a question about what an operator must do competes
+#: against text that imposes nothing here. The corpus is 2,117 adopted ADs; one
+#: upload that matches a query well enough can displace the directive that
+#: actually answers it out of a top-8.
+#:
+#: Second, and decisive: the answer writer is handed the retrieved paragraphs
+#: and told they are "paragraphs retrieved from adopted FAA ADs". The citation
+#: verifier then checks that each quote is verbatim in a retrieved paragraph --
+#: which a user document's paragraph would be. So the only thing standing
+#: between an upload and a sentence that reads as law would be the writer's own
+#: restraint. Keeping user documents out of the default scope makes that
+#: structural instead: they cannot reach the writer unless a caller asked for
+#: them by name, and ``engine.graph.stage.split_obligation_evidence`` removes
+#: them even then.
+#:
+#: The cost of this choice is that "what does my own manual say about X" is a
+#: separate request (``POST /library/search``) rather than part of /ask. That is
+#: the right trade: the two questions have different answers and different
+#: standing, and merging them is what would need justifying.
+_DEFAULT_SCOPE_IS_OBLIGATION_BEARING = all(
+    may_establish_obligation(kind, "EFFECTIVE") for kind in DEFAULT_SOURCE_KINDS
+)
+if not _DEFAULT_SCOPE_IS_OBLIGATION_BEARING:
+    raise ValueError(
+        "DEFAULT_SOURCE_KINDS holds a source_kind that cannot establish an "
+        "obligation. The default retrieval scope is what a question about "
+        "compliance is answered from; widen it explicitly per call instead."
+    )
 
 
 @dataclass
@@ -61,6 +110,7 @@ class FilterResult:
     #: caller can show "adopted rules only" rather than leave it implied.
     source_kinds: tuple[str, ...] = DEFAULT_SOURCE_KINDS
     nprm_ids: list[str] = field(default_factory=list)
+    user_document_ids: list[str] = field(default_factory=list)
 
     def as_report(self) -> dict[str, object]:
         return {
@@ -71,6 +121,7 @@ class FilterResult:
             "narrowed": self.narrowed,
             "source_kinds": list(self.source_kinds),
             "proposals": len(self.nprm_ids),
+            "user_documents": len(self.user_document_ids),
         }
 
 
@@ -242,7 +293,11 @@ def filter_candidates(
 
     ``source_kinds`` defaults to adopted rules only -- see
     :data:`DEFAULT_SOURCE_KINDS`. Pass :data:`ALL_SOURCE_KINDS` to search
-    proposals as well, or :data:`PROPOSALS_ONLY` to search only proposals.
+    proposals as well, :data:`PROPOSALS_ONLY` to search only proposals, or
+    :data:`USER_DOCUMENTS_ONLY` to search only what the user loaded. No
+    identifier filter can reach a user document: an AD number, a docket, an
+    amendment and a model all belong to the Federal Register, and a user
+    document has none of them, so it is reachable by subject alone.
     An AD number, an amendment or an explicit revision id narrows to adopted
     revisions and never pulls in a proposal: those identifiers belong to an
     adopted rule, and the graph already records the proposal that preceded it
@@ -343,20 +398,30 @@ def filter_candidates(
 
     if not narrowed:
         kept = [p for p in corpus.paragraphs if p.source_kind in source_kinds]
-        # ``current`` means the latest revision of each AD. A proposal has no
-        # revision chain to be current in, so the flag is not applied to one:
-        # the newest notice in a re-noticed docket is not a "current revision".
+        # ``current`` means the latest revision of each AD, so it applies to a
+        # paragraph of an adopted revision and to nothing else. A proposal has
+        # no revision chain to be current in -- the newest notice in a
+        # re-noticed docket is not a "current revision" -- and neither has a
+        # document the user loaded. Asked as "is it a proposal OR is it
+        # current", this read correctly only while those were the only two
+        # kinds; asked of the revision itself it stays correct as kinds are
+        # added.
         if current_only:
-            kept = [p for p in kept if p.is_proposal or p.is_current_revision]
+            kept = [p for p in kept if not p.is_adopted_revision or p.is_current_revision]
         paragraph_ids = [p.paragraph_id for p in kept]
         return FilterResult(
             paragraph_ids=paragraph_ids,
             applied=applied,
             unavailable=unavailable,
-            revision_ids=sorted({p.document_id for p in kept if not p.is_proposal}),
+            revision_ids=sorted(
+                {p.document_id for p in kept if p.is_adopted_revision}
+            ),
             narrowed=False,
             source_kinds=source_kinds,
             nprm_ids=sorted({p.document_id for p in kept if p.is_proposal}),
+            user_document_ids=sorted(
+                {p.document_id for p in kept if p.is_user_document}
+            ),
         )
 
     wanted = selected | selected_nprms

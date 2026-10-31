@@ -15,3 +15,9 @@ data/build/llm_cache/
 data/build/*.db
 data/build/*.npy
 web/tsconfig.tsbuildinfo
+.playwright-mcp/
+
+# Documents the user loaded through POST /library/documents, plus the
+# retrieval index working copy derived from them. User data and a derived
+# artifact: neither belongs in git.
+data/user_documents/

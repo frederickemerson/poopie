@@ -1,5 +1,5 @@
 {
-  "contract_version": "1.2.0",
+  "contract_version": "1.3.0",
   "description": "Single source of truth for the AD traceability engine. Every node type, edge type, enum value, event name and payload key used anywhere in engine/, web/ or eval/ MUST appear here. tests/test_contract.py fails the build on any key that does not.",
   "node_types": {
     "Docket": {
@@ -88,10 +88,11 @@
         "char_end",
         "ordinal",
         "nprm_id",
+        "user_document_id",
         "source_kind",
         "document_stage"
       ],
-      "note": "paragraph_id format: '{document_id}#{label}', where document_id is revision_id for an adopted AD and nprm_id for a proposal. Exactly one of revision_id / nprm_id is set, and source_kind says which. char offsets index into that document's plain_text for exact citation spans. document_stage is denormalised onto every paragraph so no retrieval hit can reach a reader without its legal stage attached."
+      "note": "paragraph_id format: '{document_id}#{label}', where document_id is revision_id for an adopted AD, nprm_id for a proposal and user_document_id for a document the user loaded. Exactly one of revision_id / nprm_id / user_document_id is set, and source_kind says which. char offsets index into that document's plain_text for exact citation spans. document_stage is denormalised onto every paragraph so no retrieval hit can reach a reader without its legal stage attached."
     },
     "Rule": {
       "key": "rule_id",
@@ -165,6 +166,24 @@
         "held"
       ],
       "note": "held is always false in this build. Referenced-but-absent documents are a first-class refusal cause."
+    },
+    "UserDocument": {
+      "key": "user_document_id",
+      "fields": [
+        "user_document_id",
+        "title",
+        "authority",
+        "document_stage",
+        "source_filename",
+        "media_type",
+        "content_sha256",
+        "source_bytes",
+        "uploaded_at",
+        "paragraph_count",
+        "rules_extracted",
+        "unparsed_reason"
+      ],
+      "note": "A document the user loaded into the engine: another regulation, a CFR part, a service bulletin, a foreign AD, their own text. It is NOT an FAA airworthiness directive and carries no Federal Register citation, no amendment and no effective date this engine can verify, so every citation to one reports those fields 'not recorded'. user_document_id is 'USERDOC-' plus the first 12 hex of content_sha256, so re-loading the same bytes is idempotent and a paragraph_id is stable across loads. title and authority are the uploader's own words and nothing in the engine branches on them; document_stage is the uploader's CLAIM about the document and is powerless, because the obligation fence turns on source_kind. rules_extracted is always false: no applicability rule is extracted from a user document, and unparsed_reason says so rather than leaving the absence to be read as 'this document requires nothing'."
     }
   },
   "edge_types": {
@@ -346,7 +365,8 @@
     ],
     "source_kind": [
       "REVISION",
-      "NPRM"
+      "NPRM",
+      "USER_DOCUMENT"
     ]
   },
   "refusal_semantics": {
@@ -556,6 +576,7 @@
     "The rules engine, not the LLM, produces every value in enums.decision.",
     "No UI animation may render a result that has not passed verification.",
     "An NPRM is a PROPOSAL. NPRM paragraphs MAY be indexed, retrieved and cited, and every citation to one MUST carry document_stage PROPOSED. No NPRM paragraph may ever support a statement that an obligation exists, or supply a compliance deadline: only a Revision paragraph can. A proposal answers 'what is being proposed', never 'what must I do by when'.",
-    "Every answer that states a requirement MUST carry the document_stage of the revision it came from. An AD adopted but not yet effective does not yet impose an obligation, and saying so is part of being correct."
+    "Every answer that states a requirement MUST carry the document_stage of the revision it came from. An AD adopted but not yet effective does not yet impose an obligation, and saying so is part of being correct.",
+    "A USER_DOCUMENT is the user's own material, not law. Its paragraphs MAY be indexed, retrieved and cited, and every citation to one MUST name the uploader's title and report fr_citation and page_range as not recorded -- never a Federal Register citation, which the engine does not have and must not invent. No USER_DOCUMENT paragraph may establish an obligation, supply a compliance deadline, or ground an applicability decision, whatever document_stage the uploader declared: engine.graph.stage.may_establish_obligation admits REVISION only. User documents are outside the default retrieval scope and a caller has to ask for them by name."
   ]
 }

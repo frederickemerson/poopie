@@ -59,6 +59,8 @@ from engine.graph.pages import (  # noqa: E402
 )
 from engine.graph.stage import (  # noqa: E402
     PROPOSED,
+    SOURCE_KIND_NPRM,
+    SOURCE_KIND_REVISION,
     UNKNOWN,
     describe,
     revision_stage,
@@ -77,8 +79,11 @@ CITATION_ID = re.compile(r"^(?P<document>.+?)#(?P<label>.+?)(?:@(?P<start>\d+)-(
 
 NOT_RECORDED = "not recorded"
 
-#: Source kinds, read from the contract rather than written as literals.
-KIND_REVISION, KIND_NPRM = enum("source_kind")
+#: Source kinds, named rather than unpacked positionally. ``engine.graph.stage``
+#: checks each one against ``enums.source_kind`` at import, so these are still
+#: contract values and not literals -- but adding a third kind to the contract
+#: no longer silently reassigns the two that exist.
+KIND_REVISION, KIND_NPRM = SOURCE_KIND_REVISION, SOURCE_KIND_NPRM
 
 
 class CitationStageMissing(ValueError):

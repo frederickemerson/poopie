@@ -303,7 +303,24 @@ def test_missing_inputs_are_contract_rule_fields_not_prose():
 def test_paragraph_can_name_an_nprm_parent_and_must_say_which():
     fields = set(contract()["node_types"]["Paragraph"]["fields"])
     assert {"nprm_id", "source_kind", "document_stage"} <= fields
-    assert set(enum("source_kind")) == {"REVISION", "NPRM"}
+    assert {"REVISION", "NPRM"} <= set(enum("source_kind"))
+
+
+def test_a_paragraph_names_exactly_one_parent_and_a_source_kind_for_each():
+    """Every source_kind must have a parent-id field on Paragraph, and vice versa.
+
+    This is the join between the two halves of the contract: a third kind
+    (USER_DOCUMENT) added to the enum with no ``user_document_id`` field would
+    produce paragraphs whose parent document cannot be named, and a parent-id
+    field with no kind would produce paragraphs nothing can filter by.
+    """
+    fields = set(contract()["node_types"]["Paragraph"]["fields"])
+    parent_of = {"REVISION": "revision_id", "NPRM": "nprm_id", "USER_DOCUMENT": "user_document_id"}
+    assert set(enum("source_kind")) == set(parent_of), (
+        "a new source_kind needs its parent-id field on Paragraph and an entry here"
+    )
+    for kind, parent in parent_of.items():
+        assert parent in fields, f"source_kind {kind} has no {parent} field on Paragraph"
 
 
 def test_nprm_carries_the_challenge_record_id_and_a_full_text_link():

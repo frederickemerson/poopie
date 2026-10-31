@@ -27,6 +27,7 @@ vector spaces.
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
 import sys
 from dataclasses import dataclass, field as dataclass_field
@@ -113,6 +114,11 @@ class HybridIndex:
     #: Paragraphs per contract ``source_kind``, read from the index meta. Lets
     #: a caller state what is in the index without walking the corpus.
     source_kind_counts: dict[str, int] = dataclass_field(default_factory=dict)
+    #: Which file this connection is open on, and whether that file is the
+    #: shipped artifact or a working copy. ``extend_index`` needs both: it must
+    #: know what to copy, and it must never write to the shipped one.
+    db_path: Path | None = None
+    writable: bool = False
 
     @property
     def dense_available(self) -> bool:
@@ -284,7 +290,180 @@ def load_index(
         embeddings=embeddings,
         dense_model=dense_model,
         source_kind_counts=source_kind_counts,
+        db_path=db_path,
+        writable=False,
     )
+
+
+# --------------------------------------------------- adding to a live index
+
+
+class IndexNotExtendable(RuntimeError):
+    """New paragraphs cannot be added to this index, with the reason."""
+
+
+def _max_rowid(db: sqlite3.Connection) -> int:
+    row = db.execute("SELECT COALESCE(MAX(rowid_), 0) AS n FROM ids").fetchone()
+    return int(row["n"])
+
+
+def make_writable(index: HybridIndex, work_db: Path) -> None:
+    """Reopen this index, in place, on a private copy of its database file.
+
+    In place -- the connection on the live ``HybridIndex`` is swapped -- because
+    the server holds one index object for the process lifetime and so do its
+    callers. Returning a new object would leave every existing reference
+    pointing at a closed connection.
+
+    The shipped ``data/build/retrieval.db`` is a build artifact: ``make index``
+    produces it, ``load_index`` checks it against the corpus fingerprint, and
+    nothing at request time may write to it. Inserting user rows into it would
+    also create a bad failure mode -- delete the user documents and the next
+    startup would find an index whose fingerprint matches nothing and refuse to
+    open, taking the whole engine down over a file the user removed.
+
+    So user rows go into a copy, which is disposable by construction: deleting
+    the working copy costs a file copy on the next startup and nothing else.
+    """
+    if index.writable:
+        return
+    source = index.db_path
+    if source is None:
+        raise IndexNotExtendable(
+            "this index does not know which file it was opened from, so it cannot "
+            "be copied; it was constructed directly rather than by load_index"
+        )
+    work_db.parent.mkdir(parents=True, exist_ok=True)
+    index.db.close()
+    # Copy rather than open-and-write: sqlite can hold a WAL and a journal
+    # beside the database, and a file copy of a closed database is the one
+    # operation that is unambiguously a complete copy.
+    shutil.copy2(source, work_db)
+    index.db = _connect(work_db)
+    index.db_path = work_db
+    index.writable = True
+
+
+def extend_index(
+    index: HybridIndex,
+    paragraphs: list,
+    *,
+    vectors: np.ndarray | None = None,
+    work_db: Path | None = None,
+) -> dict[str, object]:
+    """Add paragraphs already appended to ``index.corpus`` to both arms.
+
+    Incremental, not a rebuild: these paragraphs are appended at the end of the
+    corpus, so their FTS5 rowids are ``row + 1`` for rows past the current
+    maximum and their embedding rows go on the bottom of the matrix. Row *i* of
+    the matrix is still ``corpus.paragraphs[i]`` afterwards, which is the one
+    invariant the whole retrieval layer rests on -- and it is checked here, per
+    paragraph, rather than assumed from the call order.
+
+    ``vectors`` must hold one row per paragraph, in the same order, whenever the
+    index has a dense arm. A missing dense arm is fine (a ``--no-dense`` index
+    has none for anything); a *partial* one is not, because a matrix shorter
+    than the corpus makes every dense query an index error, and padding it with
+    zeros would silently retire the dense arm for exactly the new documents.
+    """
+    if not paragraphs:
+        return {"added": 0, "rowids": [], "dense": index.dense_available}
+
+    work_db = work_db or (ROOT / "data" / "user_documents" / "retrieval.db")
+    make_writable(index, work_db)
+
+    first_new = _max_rowid(index.db)
+    rows: list[int] = []
+    for paragraph in paragraphs:
+        row = index.corpus.row_of.get(paragraph.paragraph_id)
+        if row is None:
+            raise IndexNotExtendable(
+                f"{paragraph.paragraph_id} is not in the corpus this index is bound "
+                f"to; append it to the corpus first (engine.retrieval.corpus."
+                f"extend_corpus) so the row order of the two cannot diverge"
+            )
+        if row + 1 <= first_new:
+            raise IndexNotExtendable(
+                f"{paragraph.paragraph_id} is corpus row {row}, which this index "
+                f"already holds. Paragraphs may only be appended past row "
+                f"{first_new - 1}; inserting into the middle would shift every "
+                f"row after it away from its embedding."
+            )
+        rows.append(row)
+    if sorted(rows) != list(range(first_new, first_new + len(rows))):
+        raise IndexNotExtendable(
+            f"the paragraphs to add are corpus rows {sorted(rows)[:5]}..., which are "
+            f"not the contiguous block starting at {first_new}. The index would end "
+            f"up with holes whose rowids point at the wrong paragraphs."
+        )
+
+    if index.embeddings is not None:
+        if vectors is None:
+            raise IndexNotExtendable(
+                "this index has a dense arm, so new paragraphs need embeddings. "
+                "Pass vectors=, or rebuild the index with --no-dense if the dense "
+                "arm is genuinely unavailable -- there is no half-dense index."
+            )
+        matrix = np.asarray(vectors, dtype=np.float32)
+        expected = (len(paragraphs), index.embeddings.shape[1])
+        if matrix.shape != expected:
+            raise IndexNotExtendable(
+                f"vectors have shape {matrix.shape}, expected {expected}"
+            )
+    elif vectors is not None:
+        raise IndexNotExtendable(
+            "this index has no dense arm, so it cannot take embeddings for the new "
+            "paragraphs; rebuild it with the dense arm on first"
+        )
+
+    with index.db:
+        index.db.executemany(
+            "INSERT INTO paragraphs(rowid, body) VALUES (?, ?)",
+            [
+                (index.corpus.row_of[p.paragraph_id] + 1, _indexed_text(p))
+                for p in paragraphs
+            ],
+        )
+        index.db.executemany(
+            "INSERT INTO ids(rowid_, paragraph_id, document_id, source_kind, "
+            "document_stage) VALUES (?, ?, ?, ?, ?)",
+            [
+                (
+                    index.corpus.row_of[p.paragraph_id] + 1,
+                    p.paragraph_id,
+                    p.document_id,
+                    p.source_kind,
+                    p.document_stage,
+                )
+                for p in paragraphs
+            ],
+        )
+        # The meta has to describe the index as it now is. A stale fingerprint
+        # here would make the next load_index refuse the very corpus this index
+        # was just extended to match.
+        index.db.executemany(
+            "INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)",
+            [
+                ("fingerprint", index.corpus.fingerprint),
+                (
+                    "source_kind_counts",
+                    json.dumps(index.corpus.counts_by_source_kind(), sort_keys=True),
+                ),
+            ],
+        )
+
+    if index.embeddings is not None and vectors is not None:
+        index.embeddings = np.vstack(
+            [index.embeddings, np.asarray(vectors, dtype=np.float32)]
+        )
+    index.source_kind_counts = index.corpus.counts_by_source_kind()
+    return {
+        "added": len(paragraphs),
+        "rowids": [r + 1 for r in rows],
+        "dense": index.dense_available,
+        "db": str(index.db_path),
+        "fingerprint": index.corpus.fingerprint,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:

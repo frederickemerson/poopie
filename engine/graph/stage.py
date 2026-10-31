@@ -54,19 +54,48 @@ def nprm_stage(_nprm: dict[str, Any]) -> str:
 # ------------------------------------------------------- the obligation fence
 
 #: ``Paragraph.source_kind`` values. The parent document type is the
-#: authoritative discriminator: an adopted rule and a proposal are different
-#: node types carrying different fields, not two shades of the same thing.
+#: authoritative discriminator: an adopted rule, a proposal and a document the
+#: user loaded are different node types carrying different fields, not three
+#: shades of the same thing.
 SOURCE_KIND_REVISION = "REVISION"
 SOURCE_KIND_NPRM = "NPRM"
+SOURCE_KIND_USER_DOCUMENT = "USER_DOCUMENT"
 
-for _value in (SOURCE_KIND_REVISION, SOURCE_KIND_NPRM):
+for _value in (SOURCE_KIND_REVISION, SOURCE_KIND_NPRM, SOURCE_KIND_USER_DOCUMENT):
     if _value not in enum("source_kind"):
         raise ValueError(f"{_value!r} is not a contract source_kind")
+
+#: **The allow-list.** The one kind of document whose paragraphs may carry an
+#: obligation. An allow-list rather than "anything that is not a proposal",
+#: because the set of things that are not an adopted FAA rule is open-ended --
+#: it already holds proposals and user uploads, and the next kind added to the
+#: contract must be refused by default rather than admitted by omission. The
+#: self-check below makes forgetting to decide a startup error.
+OBLIGATION_BEARING_SOURCE_KINDS = frozenset({SOURCE_KIND_REVISION})
+
+#: Every contract source_kind this module has deliberately classified. Keeping
+#: it exhaustive is the point: a new kind in contracts/contract.json that nobody
+#: has ruled on fails here instead of defaulting into, or out of, the fence.
+_CLASSIFIED_SOURCE_KINDS = frozenset(
+    {SOURCE_KIND_REVISION, SOURCE_KIND_NPRM, SOURCE_KIND_USER_DOCUMENT}
+)
+
+if _CLASSIFIED_SOURCE_KINDS != set(enum("source_kind")):
+    raise ValueError(
+        "engine.graph.stage has not classified every contract source_kind: "
+        f"unclassified {sorted(set(enum('source_kind')) - _CLASSIFIED_SOURCE_KINDS)}, "
+        f"unknown to the contract {sorted(_CLASSIFIED_SOURCE_KINDS - set(enum('source_kind')))}. "
+        "Decide whether the new kind may establish an obligation and say so in "
+        "OBLIGATION_BEARING_SOURCE_KINDS."
+    )
 
 #: Why a paragraph was refused as the basis of an obligation. One vocabulary,
 #: so the reason travels with the refusal instead of being re-worded per caller.
 NOT_AN_ADOPTED_DOCUMENT = "source_kind is not an adopted revision"
 STAGED_AS_A_PROPOSAL = "document_stage is a proposal"
+NOT_AN_FAA_DOCUMENT = (
+    "source_kind is a document the user loaded, not an FAA airworthiness directive"
+)
 
 
 def may_establish_obligation(source_kind: str | None, document_stage: str | None) -> bool:
@@ -83,8 +112,16 @@ def may_establish_obligation(source_kind: str | None, document_stage: str | None
     ``annotate`` carries that date. Saying "no obligation at all" there would
     be a different wrong answer. ``imposes_obligation_now`` is the separate
     question of whether it bites today.
+
+    A ``USER_DOCUMENT`` can never pass, at any stage. The uploader supplies a
+    ``document_stage`` and may well declare EFFECTIVE -- their service bulletin
+    or their EASA AD may genuinely be in force in its own world -- but this
+    engine has not verified that against anything, and an answer that said "you
+    must, by this date" on the strength of a form field would be the whole
+    failure this module exists to prevent. The stage is therefore powerless
+    here: the gate is the allow-list, and the stage only narrows it further.
     """
-    if source_kind != SOURCE_KIND_REVISION:
+    if source_kind not in OBLIGATION_BEARING_SOURCE_KINDS:
         return False
     return document_stage != PROPOSED
 
@@ -93,7 +130,9 @@ def obligation_refusal(source_kind: str | None, document_stage: str | None) -> s
     """Why this paragraph cannot establish an obligation, or None if it can."""
     if may_establish_obligation(source_kind, document_stage):
         return None
-    if source_kind != SOURCE_KIND_REVISION:
+    if source_kind == SOURCE_KIND_USER_DOCUMENT:
+        return NOT_AN_FAA_DOCUMENT
+    if source_kind not in OBLIGATION_BEARING_SOURCE_KINDS:
         return NOT_AN_ADOPTED_DOCUMENT
     return STAGED_AS_A_PROPOSAL
 
@@ -131,6 +170,30 @@ def split_obligation_evidence(paragraphs: list[Any]) -> tuple[list[Any], list[di
             }
         )
     return eligible, excluded
+
+
+def describe_source_kind(source_kind: str | None) -> str:
+    """What kind of document this is, in one sentence a reader can act on.
+
+    ``describe`` answers "what stage is it at", which is only half the question
+    once the corpus holds documents the FAA did not publish. A reader looking at
+    a citation needs to know *whose* document it is before the stage means
+    anything.
+    """
+    if source_kind == SOURCE_KIND_REVISION:
+        return "An adopted FAA airworthiness directive, published in the Federal Register."
+    if source_kind == SOURCE_KIND_NPRM:
+        return (
+            "A notice of proposed rulemaking published by the FAA. A proposal, "
+            "open for comment, imposing nothing."
+        )
+    if source_kind == SOURCE_KIND_USER_DOCUMENT:
+        return (
+            "A document loaded into this engine by its user. It is not an FAA "
+            "airworthiness directive, this engine has not verified it, and nothing "
+            "in it can establish an obligation or a compliance deadline here."
+        )
+    return "The kind of document this came from could not be determined."
 
 
 def describe(stage: str, revision: dict[str, Any] | None = None) -> str:

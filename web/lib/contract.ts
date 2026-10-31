@@ -1,7 +1,7 @@
 // GENERATED FROM contracts/contract.json - DO NOT EDIT BY HAND.
 // Regenerate with: python contracts/gen_ts.py
 
-export const CONTRACT_VERSION = "1.2.0";
+export const CONTRACT_VERSION = "1.3.0";
 
 export type ParagraphRole = "EFFECTIVE_DATE" | "AFFECTED_ADS" | "APPLICABILITY" | "SUBJECT" | "UNSAFE_CONDITION" | "COMPLIANCE" | "REQUIRED_ACTIONS" | "EXCEPTIONS" | "CREDIT" | "AMOC" | "ADDITIONAL_INFO" | "IBR" | "OTHER";
 export const PARAGRAPH_ROLE: readonly ParagraphRole[] = ["EFFECTIVE_DATE", "AFFECTED_ADS", "APPLICABILITY", "SUBJECT", "UNSAFE_CONDITION", "COMPLIANCE", "REQUIRED_ACTIONS", "EXCEPTIONS", "CREDIT", "AMOC", "ADDITIONAL_INFO", "IBR", "OTHER"] as const;
@@ -42,8 +42,8 @@ export const AUTHORITY: readonly Authority[] = ["FAA", "EASA", "TCCA", "ANAC", "
 export type Source = "nprm_spreadsheet" | "federal_register" | "opensky" | "derived";
 export const SOURCE: readonly Source[] = ["nprm_spreadsheet", "federal_register", "opensky", "derived"] as const;
 
-export type SourceKind = "REVISION" | "NPRM";
-export const SOURCE_KIND: readonly SourceKind[] = ["REVISION", "NPRM"] as const;
+export type SourceKind = "REVISION" | "NPRM" | "USER_DOCUMENT";
+export const SOURCE_KIND: readonly SourceKind[] = ["REVISION", "NPRM", "USER_DOCUMENT"] as const;
 
 export type SseEventName =
   "entities" | "query_plan" | "retrieval" | "decision" | "answer_delta" | "verification" | "refusal" | "done" | "error";
