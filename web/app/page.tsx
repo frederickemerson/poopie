@@ -279,6 +279,7 @@ export default function Page() {
           {/* CENTRE - the answer, and nothing that has not been verified */}
           <Panel
             label="answer"
+            tier="verdict"
             meta={
               state.verification
                 ? `verified ${state.verification.kept.length} · dropped ${state.verification.dropped.length} · ${state.verification.stage_ms} ms`

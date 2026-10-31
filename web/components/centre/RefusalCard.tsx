@@ -102,14 +102,16 @@ export function RefusalCard({
       aria-label={`refusal ${refusal.code}`}
       className="m-4 border border-maybe/60 bg-maybe-bg/40"
     >
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-maybe/40 px-3 py-2">
-        <span aria-hidden className="t-mono !text-[13px] font-bold text-maybe">
+      {/* The verdict, when the verdict is a refusal. It leads at heading scale
+          because it is the answer to what was asked -- not a warning strip
+          above the real content. Ember is spent here on purpose: the refusal
+          code is one of the three things in this system allowed to carry it. */}
+      <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-maybe/40 px-4 py-3">
+        <span aria-hidden className="t-mono !text-[12px] text-accent">
           &#9650;
         </span>
-        <h3 className="t-mono !text-[13px] font-bold tracking-tight text-maybe">{refusal.code}</h3>
-        <span className="t-label !tracking-[0.06em] text-ink-3">
-          {blocks ? "answer withheld" : "answer still given"}
-        </span>
+        <h3 className="t-heading text-accent">{refusal.code}</h3>
+        <span className="t-label">{blocks ? "answer withheld" : "answer still given"}</span>
       </header>
 
       {resolverNote ? (

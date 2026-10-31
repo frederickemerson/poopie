@@ -122,9 +122,18 @@ this" and "someone has proposed this". The mapping:
 
 - Never bold the display face. Weight 400 at 66px is the entire idea.
 - No box-shadows anywhere. Depth is `--canvas` on `--fog`, nothing else.
-- Ember is never a button fill and never a background.
 - `--section` (80px) between sections; if a layout feels crowded, add
   whitespace rather than a divider.
 - Every PolySans/Inter-Tight element carries `-0.02em` tracking.
-- No chromatic colour beyond ember and brass. No blue, no green, no red —
-  including for status. A refusal is ember; a failure is graphite.
+- Ember is never a button fill and never a background.
+- One sanctioned deviation from "no chromatic colour beyond ember and brass":
+  the three `enums.decision` outcomes keep a colour. The measured site is a
+  marketing page with no status to show; this product has a 478-cell fleet
+  grid an engineer reads at a glance, and taking the colour out of it would
+  cost more than the discipline buys. The triad is pulled down into the
+  palette's own earth range rather than dashboard green/red/amber, and
+  CANNOT_DETERMINE lands exactly on brass `#816729` — fitting, since it is by
+  far the most common outcome here (47 usages against 8 and 3) and honest
+  uncertainty is the whole point of the engine. Colour never carries a
+  decision alone: `StatusGlyph` puts a shape on it too.
+- Nothing else is chromatic. A refusal is ember; a failure is graphite.

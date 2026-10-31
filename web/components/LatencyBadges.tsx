@@ -51,7 +51,10 @@ function Badge({ label, value, target }: { label: string; value: number | null; 
 
 export function LatencyBadges({ stageMs, totalMs }: LatencyBadgesProps) {
   return (
-    <div className="flex items-end gap-3" aria-label="per-stage latency against contract targets">
+    <div
+      className="flex flex-wrap items-end gap-x-3 gap-y-1"
+      aria-label="per-stage latency against contract targets"
+    >
       {STAGES.map((s) => (
         <Badge key={s.key} label={s.label} value={stageMs[s.key] ?? null} target={LATENCY_TARGETS_MS[s.key]} />
       ))}

@@ -1,51 +1,93 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   Colour carries meaning here and nothing else. Green, red and amber are the
-   three enums.decision outcomes; they are never used for emphasis, hover or
-   decoration. Everything structural is greyscale plus one non-semantic accent.
+   Tokens measured from https://ventriloc.ca/en/ with Playwright on 2026-10-31.
+   docs/design-system.md records every value, and every place the written style
+   guide disagreed with the live site (it was wrong about its own signature
+   detail, so the measurement wins).
+
+   Token NAMES are unchanged from the instrument palette this replaces, so the
+   whole component tree adopts the new surface without being rewritten. Only
+   the values moved.
+
+   Depth comes from surface colour alone: --canvas on --fog. There are no
+   box-shadows in this file and there should be none in the components either
+   -- zero was the measured value on a full landing page, and it is the single
+   strongest idea in the system.
+
+   Colour is rationed. Ember is punctuation: the refusal code, the citation
+   underline, the one number that changed. Three appearances on a screen is
+   the budget. If you want emphasis, use whitespace or type weight.
    --------------------------------------------------------------------------- */
 
 :root {
-  --c-bg: #0a0c10;
-  --c-raised: #10141b;
-  --c-sunken: #06080c;
-  --c-line: #1d232d;
-  --c-line-strong: #2d3644;
-  --c-ink: #e7ebf1;
-  --c-ink-2: #98a3b2;
-  --c-ink-3: #68727f;
-  --c-accent: #5b9dff;
-  --c-accent-dim: #1b3157;
-  --c-ok: #35c77d;
-  --c-ok-bg: #0d2a1d;
-  --c-no: #ff6262;
-  --c-no-bg: #2c1113;
-  --c-maybe: #f2ab2f;
-  --c-maybe-bg: #2d2008;
-  --c-hl: #3b2f06;
-  color-scheme: dark;
+  /* Surfaces. Fog is the page; canvas is the card that floats on it. */
+  --c-bg: #f5f5f5;
+  --c-raised: #ffffff;
+  --c-sunken: #efefef;
+  --c-line: #e8e8e8;
+  --c-line-strong: rgba(32, 32, 32, 0.21);
+
+  /* Ink, darkest to lightest. */
+  --c-ink: #202020;
+  --c-ink-2: #4d4d4d;
+  --c-ink-3: #828282;
+
+  /* Ember, and the warm editorial wash that stands in for a tint of it. */
+  --c-accent: #ff682c;
+  --c-accent-dim: #ebe6dd;
+
+  /* The three enums.decision outcomes, and the one sanctioned deviation from
+     "no chromatic colour beyond ember and brass".
+
+     A marketing page has no status to show; a 478-cell fleet grid does, and an
+     engineer reads it at a glance. So the triad stays -- but pulled down into
+     the palette's own earth range rather than the usual dashboard green/red/
+     amber, and CANNOT_DETERMINE lands exactly on the system's brass, which is
+     fitting: it is by far the most common outcome here (47 usages against 8
+     and 3), and honest uncertainty is this engine's whole point.
+
+     Colour never carries a decision alone -- StatusGlyph puts a shape on it. */
+  --c-ok: #1f6f43;
+  --c-ok-bg: #e8f1eb;
+  --c-no: #9b2c21;
+  --c-no-bg: #f7eae8;
+  --c-maybe: #816729;
+  --c-maybe-bg: #efe9dc;
+
+  /* Quote highlight: the ivory wash, not a yellow marker. */
+  --c-hl: #ebe6dd;
+
+  color-scheme: light;
 }
 
-:root[data-theme="light"] {
-  --c-bg: #f2f4f8;
-  --c-raised: #ffffff;
-  --c-sunken: #e7ebf1;
-  --c-line: #d7dde6;
-  --c-line-strong: #b4bfcd;
-  --c-ink: #0d1218;
-  --c-ink-2: #4d5868;
-  --c-ink-3: #727e8d;
-  --c-accent: #1c5fd6;
-  --c-accent-dim: #dbe7fb;
-  --c-ok: #117a46;
-  --c-ok-bg: #e2f5ea;
-  --c-no: #bf2730;
-  --c-no-bg: #fdeaea;
-  --c-maybe: #8f5806;
-  --c-maybe-bg: #fdf2dd;
-  --c-hl: #fdf0b8;
-  color-scheme: light;
+/* Dark is a real variant, not an inversion: fog and canvas swap for graphite
+   bands, and the inks lighten. Ember holds its hue because it is already
+   legible on both. */
+:root[data-theme="dark"] {
+  --c-bg: #161616;
+  --c-raised: #202020;
+  --c-sunken: #121212;
+  --c-line: #2b2b2b;
+  --c-line-strong: rgba(235, 230, 221, 0.22);
+
+  --c-ink: #ebe6dd;
+  --c-ink-2: #b4afa6;
+  --c-ink-3: #828282;
+
+  --c-accent: #ff7d47;
+  --c-accent-dim: #33281d;
+
+  --c-ok: #6fb98c;
+  --c-ok-bg: #16251c;
+  --c-no: #e08b80;
+  --c-no-bg: #2a1a18;
+  --c-maybe: #c2a755;
+  --c-maybe-bg: #27210f;
+
+  --c-hl: #33281d;
+
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -66,8 +108,19 @@
   --color-maybe: var(--c-maybe);
   --color-maybe-bg: var(--c-maybe-bg);
   --color-hl: var(--c-hl);
-  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --font-display: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Measured radii. The written guide called 0px buttons "the signature";
+     every button on the live page is 20px. */
+  --radius-card: 8px;
+  --radius-widget: 20px;
+  --radius-pill: 200px;
+
+  --spacing-gap: 20px;
+  --spacing-section: 80px;
 }
 
 * {
@@ -83,62 +136,158 @@ body {
   background: var(--c-bg);
   color: var(--c-ink);
   font-family: var(--font-sans);
-  font-feature-settings: "cv05", "ss03";
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
 }
 
-/* Dense instrument type scale. */
-.t-label {
-  font-size: 10px;
+/* ---------------------------------------------------------------------------
+   Type. Three tiers, because this engine emits a great deal at once and
+   rendering it at equal weight is what makes a page feel like a data dump:
+
+     1. the verdict   -- display, the only thing above the fold
+     2. the grounds   -- body, why the verdict is what it is
+     3. the machinery -- caption in slate, behind a disclosure
+
+   Display tracking is ~-0.02em at every size, and the display face is NEVER
+   bolded: weight 400 at 66px is the entire idea.
+   --------------------------------------------------------------------------- */
+
+.t-display {
+  font-family: var(--font-display);
+  font-size: clamp(38px, 6vw, 66px);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  font-weight: 400;
+  text-wrap: balance;
+}
+.t-heading {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3vw, 32px);
+  line-height: 1.19;
+  letter-spacing: -0.02em;
+  font-weight: 400;
+  text-wrap: balance;
+}
+.t-subhead {
+  font-family: var(--font-display);
+  font-size: 20px;
   line-height: 1.2;
-  letter-spacing: 0.1em;
+  letter-spacing: -0.02em;
+  font-weight: 400;
+}
+
+/* The verdict sentence. Readable at arm's length, measure capped near 65
+   characters so a long answer does not run the full width of a 1200px page. */
+.t-answer {
+  font-size: 18px;
+  line-height: 1.5;
+  letter-spacing: -0.004em;
+  max-width: 64ch;
+  text-wrap: pretty;
+}
+.t-body {
+  font-size: 15px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+.t-caption {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--c-ink-2);
+}
+
+/* Tier-3 machinery. Quiet because nobody reads it first, present because the
+   proof matters. */
+.t-label {
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--c-ink-3);
 }
+
+/* Identifiers and figures. Monospace is kept for one reason: an AD number, a
+   paragraph id and a millisecond reading are all scanned in columns, and
+   proportional digits break the column. */
 .t-mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 11.5px;
+  font-size: 12px;
   letter-spacing: -0.01em;
 }
-.t-body {
-  font-size: 13.5px;
-  line-height: 1.55;
+
+/* Any figure in running text, so totals line up without going monospace. */
+.t-figure {
+  font-variant-numeric: tabular-nums;
 }
-.t-answer {
-  font-size: 15px;
-  line-height: 1.62;
-  letter-spacing: -0.003em;
+
+/* ---------------------------------------------------------------------------
+   Stage is a first-class visual. Contract 1.2.0 requires every citation to
+   carry its document_stage, and that is the difference between "you must do
+   this" and "someone has proposed this". A proposal must not be mistakable
+   for a requirement at a glance -- even cropped into a screenshot.
+   --------------------------------------------------------------------------- */
+
+[data-stage="PROPOSED"] {
+  background: var(--c-accent-dim);
+  border-left: 2px solid var(--c-maybe);
+}
+[data-stage="ADOPTED_NOT_YET_EFFECTIVE"] {
+  border-top: 1px solid var(--c-maybe);
+}
+[data-stage="SUPERSEDED"] {
+  color: var(--c-ink-3);
+}
+
+/* ---------------------------------------------------------------------------
+   Interaction. Everything interactive answers within 180ms, and the focus
+   ring is never removed -- keyboard users navigate this proof tree.
+   --------------------------------------------------------------------------- */
+
+:where(button, a, [tabindex], input, [role="tab"], [role="gridcell"]) {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+:where(button, a, [role="tab"], [role="gridcell"]):active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 :where(button, a, [tabindex], input, [role="tab"], [role="gridcell"]):focus-visible {
   outline: 2px solid var(--c-accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
   border-radius: 2px;
 }
 
-/* Hairline rules that survive both themes. */
+/* A hairline, used deliberately. The written guide claims sections are
+   separated purely by whitespace; the live page does use 1px borders. */
 .rule-t {
   box-shadow: inset 0 1px 0 var(--c-line);
 }
 
-/* Scrollbars, kept out of the way. */
 *::-webkit-scrollbar {
   width: 9px;
   height: 9px;
 }
 *::-webkit-scrollbar-thumb {
-  background: var(--c-line-strong);
-  border-radius: 9px;
+  background: var(--c-ink-3);
+  border-radius: var(--radius-pill);
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* The one decorative motion in the product: a verifier shimmer on a pending
-   answer row. It is disabled outright under reduced motion. */
+/* ---------------------------------------------------------------------------
+   Motion. Two animations exist, both transform/opacity only so they run on
+   the compositor, and both stop dead under reduced motion.
+   --------------------------------------------------------------------------- */
+
 @keyframes scan {
   0% {
     transform: translateX(-100%);
@@ -156,20 +305,34 @@ body {
   animation: scan 1.1s linear infinite;
 }
 
+/* A ring that expands and fades once. Built from transform and opacity on a
+   pseudo-element rather than an animated box-shadow, both because this system
+   has no shadows and because width/shadow animation cannot be composited. */
 @keyframes pulse-ring {
   0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--ring-c) 60%, transparent);
+    transform: scale(1);
+    opacity: 0.55;
   }
   100% {
-    box-shadow: 0 0 0 7px color-mix(in srgb, var(--ring-c) 0%, transparent);
+    transform: scale(2.1);
+    opacity: 0;
   }
 }
 .pulse-ring {
+  position: relative;
+}
+.pulse-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid var(--ring-c, var(--c-accent));
   animation: pulse-ring 0.72s ease-out 2;
+  pointer-events: none;
 }
 
 [data-reduced-motion="true"] .scanline::after,
-[data-reduced-motion="true"] .pulse-ring {
+[data-reduced-motion="true"] .pulse-ring::after {
   animation: none !important;
 }
 [data-reduced-motion="true"] * {
@@ -181,12 +344,15 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .scanline::after,
-  .pulse-ring {
+  .pulse-ring::after {
     animation: none !important;
+  }
+  * {
+    transition-duration: 0ms !important;
   }
 }
 
-/* React Flow, themed to the instrument palette. */
+/* React Flow, themed to the surface. */
 .react-flow__attribution {
   display: none;
 }

@@ -32,14 +32,24 @@ export const MAX_MOTION_MS = 400;
 
 export function MotionPrefsProvider({ children }: { children: ReactNode }) {
   const [reduced, setReduced] = useState(false);
-  const [theme, setTheme] = useState<Theme>("dark");
+  // Light is the designed surface and the value layout.tsx renders on the
+  // server, so starting there means the first paint is already correct. This
+  // defaulted to "dark" while the server rendered "light", which overwrote the
+  // attribute on hydration and made the light theme unreachable.
+  const [theme, setTheme] = useState<Theme>("light");
 
   useEffect(() => {
     const storedMotion = window.localStorage.getItem(STORE_MOTION);
     const systemReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setReduced(storedMotion === null ? systemReduced : storedMotion === "true");
+    // Stored choice first, then the operating system's, matching how reduced
+    // motion resolves immediately above.
     const storedTheme = window.localStorage.getItem(STORE_THEME);
-    if (storedTheme === "light" || storedTheme === "dark") setTheme(storedTheme);
+    if (storedTheme === "light" || storedTheme === "dark") {
+      setTheme(storedTheme);
+    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      setTheme("dark");
+    }
   }, []);
 
   useEffect(() => {
