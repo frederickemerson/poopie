@@ -58,17 +58,14 @@ const STRENGTHS: readonly { readonly title: string; readonly body: string }[] = 
 
 /** The product surface, stated as the things an engineer actually types. */
 // Each of these was run against the engine and the note says what it actually
-// returned, including the one that refuses. An example question is a promise,
-// and the page previously made four the engine could not keep -- one of them
-// about an AD that is not even in this corpus, so it could only ever refuse.
+// returned -- two answers of different kinds, and two refusals of different
+// kinds. An example question is a promise, and the page previously made four
+// the engine could not keep, one of them about AD 2019-08-11, which is not in
+// this corpus and so could only ever refuse.
 const ASKS: readonly { readonly q: string; readonly note: string }[] = [
   {
     q: "What is the unsafe condition addressed by AD 2009-17-05?",
     note: "answered from the directive's own paragraphs, every sentence cited",
-  },
-  {
-    q: "Does AD 2004-21-08 apply to N117UW?",
-    note: "the applicability paragraph, and the part numbers it turns on",
   },
   {
     q: "Is AD 2004-21-08 the current revision, or has it been superseded?",
@@ -77,6 +74,10 @@ const ASKS: readonly { readonly q: string; readonly note: string }[] = [
   {
     q: "What must I do for AD 2024-13-05, and by when?",
     note: "refused: the compliance steps live in a Boeing bulletin this corpus does not hold",
+  },
+  {
+    q: "What are the latest ADs?",
+    note: "refused: it names no directive, docket or aircraft, so there is nothing to decide",
   },
 ];
 
@@ -322,6 +323,13 @@ export default function Landing() {
                 <h2 id="ask-heading" className="t-heading max-w-[24ch] text-ink">
                   One textbox. No query language, no docket to look up first.
                 </h2>
+                <p className="t-answer max-w-[64ch] text-ink-2">
+                  These four were run against the engine and the note says what came back.
+                  Two of them refuse, which is the behaviour and not the exception: a
+                  question whose evidence is in a bulletin we do not hold, and a question
+                  that names no aircraft at all, both have an honest answer, and it is not
+                  a guess.
+                </p>
               </Reveal>
 
               <ul className="mt-9 grid gap-px border border-line-strong bg-line-strong">
