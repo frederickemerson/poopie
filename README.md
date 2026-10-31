@@ -131,15 +131,29 @@ in BlastRadius. See [`docs/fleet.md`](docs/fleet.md) for the full null-rate tabl
 
 ## Running it
 
-```bash
-# Python side
-python3 -m pytest tests/ -q              # 191 passed
-python3 -m engine.retrieval.index --build
-uvicorn engine.api.server:app --port 8000
+`make help` lists every canonical command. The ones that matter:
 
-# UI
-cd web && pnpm install && pnpm dev       # http://localhost:3000
+```bash
+make verify     # the gate: whole test suite, then latency vs contract targets
+make demo       # walk the engine end to end on four questions -- free, no model calls
+make cost       # what has actually been spent, from the append-only ledger
+
+uvicorn engine.api.server:app --port 8000   # SSE backend
+make web                                    # UI on http://localhost:3000
 ```
+
+`make demo` is the quickest honest look at the engine: it calls the same
+functions in the same order as the SSE server, so it cannot flatter the
+product by reimplementing it. It prints, per question, the entities code found,
+how the graph filter narrowed, what was retrieved, what the rules engine
+decided and on which rule, and every refusal with its code. Add
+`make demo-live` to also run the answer writer and see each sentence either
+kept with its computed citation or dropped with the reason.
+
+Rebuilding from scratch has a dependency order, because the derived artifacts
+key on paragraph ids: `make ingest && make extract && make index`. Running
+them out of order leaves rules pointing at ids that no longer exist, which the
+contract gate catches.
 
 An `ANTHROPIC_API_KEY` in `.env` (gitignored) enables the query planner and answer
 writer. Without one the engine runs offline and marks what it cannot extract as
