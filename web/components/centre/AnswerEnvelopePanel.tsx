@@ -17,8 +17,14 @@ import { useMotionPrefs } from "@/lib/motion";
 
 interface AnswerEnvelopePanelProps {
   readonly envelope: AnswerEnvelope;
-  /** NEED_CONFIG is resolvable by the user: offer the named inputs. */
-  readonly onSupplyValue?: (field: string) => void;
+  /**
+   * NEED_CONFIG is resolvable by the user. This moves focus to the input for
+   * that field on the refusal card; it does not re-ask on its own, because a
+   * one-click re-ask would have to put a value in the question, and the only
+   * value this panel knows is the rule's own - asserting that would be the UI
+   * inventing a fact about the aircraft.
+   */
+  readonly onFocusMissingInput?: (field: string) => void;
 }
 
 const STATUS_WORD: Readonly<Record<AnswerStatus, string>> = {
@@ -28,13 +34,13 @@ const STATUS_WORD: Readonly<Record<AnswerStatus, string>> = {
 };
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <div className="grid grid-cols-[112px_1fr] items-baseline gap-2 border-t border-line px-3 py-1.5">
-    <span className="t-label !tracking-[0.06em]">{label}</span>
-    <div className="t-body text-ink-2">{children}</div>
+  <div className="grid grid-cols-1 items-baseline gap-x-2 gap-y-0.5 sm:grid-cols-[112px_minmax(0,1fr)] border-t border-line px-3 py-1.5">
+    <span className="t-label !tracking-[0.06em] break-words">{label}</span>
+    <div className="t-body min-w-0 text-ink-2">{children}</div>
   </div>
 );
 
-export function AnswerEnvelopePanel({ envelope, onSupplyValue }: AnswerEnvelopePanelProps) {
+export function AnswerEnvelopePanel({ envelope, onFocusMissingInput }: AnswerEnvelopePanelProps) {
   const { dur } = useMotionPrefs();
   const { revision_status: revision, traversal } = envelope;
   const stage = envelope.document_stage.replace(/_/g, " ").toLowerCase();
@@ -77,9 +83,9 @@ export function AnswerEnvelopePanel({ envelope, onSupplyValue }: AnswerEnvelopeP
               <li key={field}>
                 <button
                   type="button"
-                  onClick={() => onSupplyValue?.(field)}
-                  disabled={onSupplyValue === undefined}
-                  title={`re-ask the question with the ${field} stated in it`}
+                  onClick={() => onFocusMissingInput?.(field)}
+                  disabled={onFocusMissingInput === undefined}
+                  title={`answer the ${field} question on the refusal card`}
                   className="t-mono border border-line-strong bg-sunken px-2 py-1 font-semibold text-ink enabled:hover:border-accent disabled:cursor-default"
                 >
                   {field}
@@ -97,9 +103,10 @@ export function AnswerEnvelopePanel({ envelope, onSupplyValue }: AnswerEnvelopeP
           */}
           <p className="t-mono mt-2 text-ink-3">
             A technician can answer this at the aircraft in seconds &mdash; which is why the code is
-            NEED_CONFIG and not CANNOT_DETERMINE. The engine does not yet accept the value: its
-            applicability stage reads these fields from the fleet record only, so re-asking with the
-            value stated shows the same verdict until that input exists.
+            NEED_CONFIG and not CANNOT_DETERMINE. Each field above has an input on the refusal card.
+            The engine does not yet accept the value: its applicability stage reads these fields from
+            the fleet record only, so re-asking with the value stated shows the same verdict until
+            that input exists, and your answer is carried in the thread attributed to you.
           </p>
         </div>
       ) : null}

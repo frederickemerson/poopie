@@ -1,12 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useState } from "react";
 import { paragraphRef, sameParagraph } from "@/lib/citation";
 import { REFUSAL_SEMANTICS } from "@/lib/contract";
+import type { AskIntent, MissingField } from "@/lib/conversation";
 import { useMotionPrefs } from "@/lib/motion";
 import type { ExternalDocumentRef, ParagraphNode, RefusalPayload } from "@/lib/events";
 import { QuoteInText } from "../ui/QuoteSpan";
+import { RefusalResolver, type FocusRequest } from "./RefusalResolver";
 
 interface RefusalCardProps {
   readonly refusal: RefusalPayload;
@@ -17,8 +18,19 @@ interface RefusalCardProps {
    * structured facts about the missing document and they come from the engine.
    */
   readonly externalDocuments?: readonly ExternalDocumentRef[];
-  /** NEED_CONFIG is resolvable by the user; supplying the value re-runs. */
-  readonly onSupplyValue?: (field: string, value: string) => void;
+  /**
+   * What turns this refusal into the next question. Omitted on an archived or
+   * recorded run, where there is nothing to re-ask.
+   */
+  readonly onAsk?: (intent: AskIntent) => void;
+  /** Fields the engine named in `unknown_fields`, with the rule behind each. */
+  readonly missing?: readonly MissingField[];
+  /** The aircraft the decision was made against, for phrasing an assertion. */
+  readonly subject?: string | null;
+  /** The question that was refused, so a rephrase starts from the user's words. */
+  readonly asked?: string;
+  readonly busy?: boolean;
+  readonly focusRequest?: FocusRequest | null;
 }
 
 /** How many evidence paragraphs are shown in full before they are counted. */
@@ -32,9 +44,9 @@ const RESOLVER: Readonly<Record<string, string>> = {
 };
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <div className="grid grid-cols-[92px_1fr] items-baseline gap-2 border-t border-line px-3 py-2">
-    <span className="t-label !tracking-[0.06em]">{label}</span>
-    <div className="t-body text-ink-2">{children}</div>
+  <div className="grid grid-cols-1 items-baseline gap-x-2 gap-y-0.5 sm:grid-cols-[92px_minmax(0,1fr)] border-t border-line px-3 py-2">
+    <span className="t-label !tracking-[0.06em] break-words">{label}</span>
+    <div className="t-body min-w-0 text-ink-2">{children}</div>
   </div>
 );
 
@@ -47,12 +59,16 @@ export function RefusalCard({
   refusal,
   paragraphs,
   externalDocuments = [],
-  onSupplyValue,
+  onAsk,
+  missing = [],
+  subject = null,
+  asked = "",
+  busy = false,
+  focusRequest = null,
 }: RefusalCardProps) {
   const { dur } = useMotionPrefs();
   const semantics = REFUSAL_SEMANTICS[refusal.code];
   const blocks = semantics.blocks_answer;
-  const [supplied, setSupplied] = useState("");
 
   // The live service sends `detail` as one sentence naming the exact missing
   // thing; the recorded stream sends a keyed object. Both are rendered as they
@@ -110,7 +126,10 @@ export function RefusalCard({
         <span aria-hidden className="t-mono !text-[12px] text-accent">
           &#9650;
         </span>
-        <h3 className="t-heading text-accent">{refusal.code}</h3>
+        {/* EXTERNAL_SOURCE_REQUIRED is 24 unbreakable characters at heading
+            size. Without these it is wider than a 320px phone and gives the
+            whole page a horizontal scrollbar. */}
+        <h3 className="t-heading min-w-0 break-words text-accent">{refusal.code}</h3>
         <span className="t-label">{blocks ? "answer withheld" : "answer still given"}</span>
       </header>
 
@@ -180,32 +199,6 @@ export function RefusalCard({
           <Row label="rule value">
             <span className="t-mono text-ink">{needConfig.rule_value}</span>
           </Row>
-          <div className="border-t border-line px-3 py-2">
-            <p className="t-label mb-1.5">supply the value</p>
-            <form
-              className="flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (supplied.trim()) {
-                  onSupplyValue?.(needConfig.field, supplied.trim());
-                }
-              }}
-            >
-              <input
-                aria-label="manufacturer serial number"
-                value={supplied}
-                onChange={(e) => setSupplied(e.target.value)}
-                placeholder="MSN, e.g. 1224"
-                className="t-mono w-32 border border-line bg-sunken px-2 py-1 text-ink placeholder:text-ink-3"
-              />
-              <button
-                type="submit"
-                className="t-label border border-line-strong bg-sunken px-3 py-1 text-ink hover:border-accent"
-              >
-                re-ask
-              </button>
-            </form>
-          </div>
         </>
       ) : null}
 
@@ -265,6 +258,21 @@ export function RefusalCard({
         <span className="text-ink">{refusal.resolvable_by}</span>{" "}
         <span className="t-mono text-ink-3">(as the engine reported it)</span>
       </Row>
+
+      {/* The refusal, as the next turn. Every input a code honestly has lives
+          in one place, so no code can grow a bespoke half-input beside it. */}
+      {onAsk ? (
+        <RefusalResolver
+          refusal={refusal}
+          missing={missing}
+          documents={externalDocuments}
+          subject={subject}
+          asked={asked}
+          onAsk={onAsk}
+          busy={busy}
+          focusRequest={focusRequest}
+        />
+      ) : null}
 
       {evidence.length > 0 ? (
         <div className="border-t border-line bg-sunken/50 px-3 py-2.5">

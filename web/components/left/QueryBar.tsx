@@ -6,7 +6,13 @@ import { useMotionPrefs } from "@/lib/motion";
 interface QueryBarProps {
   readonly value: string;
   readonly onChange: (next: string) => void;
-  readonly onSubmit: () => void;
+  /**
+   * Ask. The text is passed explicitly when the composer knows it, because the
+   * type-in effect sets the value and submits in the same tick: React has not
+   * re-rendered yet, so a handler closing over the value state would send the
+   * question one character short.
+   */
+  readonly onSubmit: (text?: string) => void;
   readonly streaming: boolean;
   /** When this changes, the text types itself in, then the run starts. */
   readonly typeIn: { readonly text: string; readonly nonce: number } | null;
@@ -54,7 +60,7 @@ export function QueryBar({
     const { text } = typeIn;
     if (reduced) {
       changeRef.current(text);
-      submitRef.current();
+      submitRef.current(text);
       return;
     }
     setTyping(true);
@@ -65,7 +71,7 @@ export function QueryBar({
       if (i >= text.length) {
         window.clearInterval(id);
         setTyping(false);
-        submitRef.current();
+        submitRef.current(text);
       }
     }, TYPE_MS);
     return () => {
@@ -136,23 +142,45 @@ export function QueryBar({
         </div>
       </form>
 
+      {/*
+        Suggestions, and nothing more. Picking one writes it into the box above
+        and leaves it there to be edited or sent: it never asks on the reader's
+        behalf, which is why the box starts empty and why these sit under it
+        rather than in it.
+      */}
       {hero && suggestions.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <p className="t-label">or try one of these</p>
+          <p className="t-label">or start from one of these</p>
           <ul className="flex flex-col gap-1.5">
             {suggestions.map((question) => (
               <li key={question}>
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => onPick?.(question)}
-                  className="t-body w-full border border-line bg-raised px-3 py-2 text-left text-ink-2 transition-colors hover:border-line-strong hover:text-ink focus-visible:border-accent disabled:cursor-not-allowed"
+                  onClick={() => {
+                    onPick?.(question);
+                    // Land the caret in the question, so it can be edited
+                    // before it is asked rather than only accepted.
+                    const el = ref.current;
+                    el?.focus();
+                    window.requestAnimationFrame(() => {
+                      const length = el?.value.length ?? 0;
+                      el?.setSelectionRange(length, length);
+                    });
+                  }}
+                  className="group/pick t-body flex w-full items-baseline gap-2 border border-line bg-raised px-3 py-2 text-left text-ink-2 transition-colors hover:border-line-strong hover:text-ink focus-visible:border-accent disabled:cursor-not-allowed"
                 >
-                  {question}
+                  <span aria-hidden className="t-mono shrink-0 text-ink-3">
+                    &rarr;
+                  </span>
+                  <span>{question}</span>
                 </button>
               </li>
             ))}
           </ul>
+          <p className="t-mono text-ink-3">
+            these fill the box above &middot; edit it, then press ask
+          </p>
         </div>
       ) : null}
     </div>

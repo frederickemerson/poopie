@@ -6,6 +6,7 @@ import { BackendStatus } from "@/components/BackendStatus";
 import { AnswerEnvelopePanel } from "@/components/centre/AnswerEnvelopePanel";
 import { AnswerStream } from "@/components/centre/AnswerStream";
 import { RefusalCard } from "@/components/centre/RefusalCard";
+import type { FocusRequest } from "@/components/centre/RefusalResolver";
 import { SupersededBanner } from "@/components/centre/SupersededBanner";
 import { DevToolbar } from "@/components/DevToolbar";
 import { EntityChips } from "@/components/left/EntityChips";
@@ -13,12 +14,25 @@ import { PlanPanel } from "@/components/left/PlanPanel";
 import { QueryBar } from "@/components/left/QueryBar";
 import { LatencyBadges } from "@/components/LatencyBadges";
 import { EvidenceTabs, type EvidenceTabId } from "@/components/right/EvidenceTabs";
+import { CarryNote } from "@/components/thread/CarryNote";
+import { SuppliedNotice } from "@/components/thread/SuppliedNotice";
+import { Thread } from "@/components/thread/Thread";
 import { Disclosure } from "@/components/ui/Disclosure";
-import { Panel } from "@/components/ui/Panel";
 import { Tabs } from "@/components/ui/Tabs";
 import type { BlastRevisionRef } from "@/lib/blast";
 import { resolveCitation, type ResolvedCitation } from "@/lib/citation";
 import { CONTRACT_VERSION } from "@/lib/contract";
+import {
+  contextFromPlan,
+  decisionSubject,
+  followUp,
+  missingFields,
+  missingFromQuestion,
+  NO_CONTEXT,
+  type AskIntent,
+  type SuppliedFact,
+} from "@/lib/conversation";
+import { snapshotTurn, threadContext, type Turn } from "@/lib/conversationTurn";
 import { findAd, revisionForAdNumber } from "@/lib/corpus";
 import {
   DEFAULT_ENGINE_SOURCE,
@@ -48,7 +62,11 @@ export default function Page() {
   const health = useBackendHealth();
   const [source, setSource] = useState<EngineSource>(DEFAULT_ENGINE_SOURCE);
   const [scenarioId, setScenarioId] = useState<ScenarioId>(DEFAULT_SCENARIO_ID);
-  const [query, setQuery] = useState<string>(demoQuestion(DEFAULT_ENGINE_SOURCE, DEFAULT_SCENARIO_ID).query);
+  // Empty. The page opens on a question nobody has asked yet, and the only
+  // text that ever reaches the engine is text the reader put there: a composer
+  // arriving pre-filled reads as an answer already in waiting, and invites the
+  // reader to press ask on a question that was not theirs.
+  const [query, setQuery] = useState<string>("");
   const [typeIn, setTypeIn] = useState<{ text: string; nonce: number } | null>(null);
   const [workspace, setWorkspace] = useState<Workspace>("workspace");
   const [evidenceTab, setEvidenceTab] = useState<EvidenceTabId>("proof");
@@ -57,18 +75,79 @@ export default function Page() {
   // Revisions the engine itself surfaced, newest first. The blast grid may only
   // be asked about one of these, so it can never show a revision no run read.
   const [revisions, setRevisions] = useState<readonly BlastRevisionRef[]>([]);
-  const [hydrated, setHydrated] = useState(false);
 
+  /* ------------------------------------------------------------ the thread --
+     The engine holds no conversation: `useEngineStream` keeps exactly one run
+     and a new question resets it. So the thread is kept here, as snapshots
+     taken at the moment the next question is asked. That ordering is what
+     makes the archive honest -- an earlier turn keeps the citations it was
+     actually decided on rather than being re-resolved against a later run. */
+  const [turns, setTurns] = useState<readonly Turn[]>([]);
+  /** The user's own words for the run on screen, before anything was appended. */
+  const [liveAsked, setLiveAsked] = useState("");
+  const [liveCarried, setLiveCarried] = useState<string | null>(null);
+  const [liveSupplied, setLiveSupplied] = useState<readonly SuppliedFact[]>([]);
+  const [carryEnabled, setCarryEnabled] = useState(true);
+  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
+
+  // The stored engine choice is read after mount, not during render: the
+  // server has no localStorage, and reading it during render would make the
+  // first client paint disagree with the server's.
   useEffect(() => {
     setSource(readStoredEngineSource());
-    setHydrated(true);
   }, []);
+
+  /**
+   * The one way a question reaches the engine.
+   *
+   * It archives whatever is on screen first, then starts the run, so the
+   * thread grows by exactly one entry per question and the live turn is never
+   * rendered twice. The question text is passed through explicitly rather than
+   * read back out of `query` state, because a resolver can hand over several
+   * hundred characters of pasted document text and waiting a render for state
+   * to settle would send the previous question.
+   */
+  const ask = useCallback(
+    (intent: AskIntent) => {
+      const text = intent.question.trim();
+      if (text === "") return;
+
+      setTurns((prev) => {
+        const archived = snapshotTurn(state, liveAsked, liveCarried, liveSupplied);
+        return archived === null ? prev : [...prev, archived];
+      });
+
+      setLiveAsked(intent.asked);
+      setLiveCarried(intent.carried);
+      setLiveSupplied(intent.supplied);
+      // The composer empties: the question is now in the thread above it, where
+      // it can be read and copied, and a follow-up should not have to clear the
+      // last question out of the box before it can be typed.
+      setQuery("");
+      setCitation(null);
+      setFocusRequest(null);
+
+      if (source === "mock") {
+        const demo = demoQuestion(source, scenarioId);
+        const edited = text !== demo.query.trim();
+        run(edited ? { query: text, source } : { query: text, source, scenario: scenarioId });
+        return;
+      }
+      const demo = demoQuestion(source, scenarioId);
+      const edited = text !== demo.query.trim();
+      run({
+        query: text,
+        source,
+        tailNumber: edited ? tailNumberIn(text) : demo.tail,
+      });
+    },
+    [liveAsked, liveCarried, liveSupplied, run, scenarioId, source, state],
+  );
 
   const start = useCallback(
     (nextSource: EngineSource, id: ScenarioId) => {
       const { query: text } = demoQuestion(nextSource, id);
       setScenarioId(id);
-      setCitation(null);
       setFocusRevisionId(null);
       setEvidenceTab("proof");
       setWorkspace("workspace");
@@ -84,29 +163,54 @@ export default function Page() {
       setSource(next);
       storeEngineSource(next);
       setRevisions([]);
-      start(next, scenarioId);
+      // A thread of answers from the other engine would be a thread about a
+      // different corpus. It is dropped rather than left to look continuous.
+      setTurns([]);
+      setLiveAsked("");
+      setLiveCarried(null);
+      setLiveSupplied([]);
+      setQuery("");
     },
-    [scenarioId, start],
+    [],
   );
 
-  // The opening run. Everything the UI shows afterwards came off the stream.
-  useEffect(() => {
-    if (!hydrated) return;
-    start(source, DEFAULT_SCENARIO_ID);
-    // Only on first hydration: later runs are driven by the toolbar and the bar.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated]);
+  /**
+   * What a contextless follow-up would restate, given everything asked so far.
+   *
+   * The run on screen comes first and the archive second: a turn only enters
+   * `turns` when the next question is asked, so reading the archive alone would
+   * carry the subject of the turn before last.
+   */
+  const context = useMemo(() => {
+    const live = contextFromPlan(state.plan);
+    const prior = threadContext(turns);
+    return {
+      adNumber: live.adNumber ?? prior.adNumber,
+      tailNumber: live.tailNumber ?? prior.tailNumber,
+    };
+  }, [state.plan, turns]);
+  const carry = useMemo(
+    () => (carryEnabled ? missingFromQuestion(query, context) : NO_CONTEXT),
+    [carryEnabled, context, query],
+  );
 
-  const submit = useCallback(() => {
-    const demo = demoQuestion(source, scenarioId);
-    const edited = query.trim() !== demo.query.trim();
-    if (source === "mock") {
-      run(edited ? { query, source } : { query, source, scenario: scenarioId });
-    } else {
-      run({ query, source, tailNumber: edited ? tailNumberIn(query) : demo.tail });
-    }
-    setCitation(null);
-  }, [query, run, scenarioId, source]);
+  /**
+   * The composer. A follow-up is made self-contained before it is sent.
+   *
+   * `text` is supplied by the type-in path, which sets the value and submits in
+   * one tick; falling back to `query` state there would send the question one
+   * character short.
+   */
+  const submit = useCallback(
+    (text?: string) => {
+      const asked = (text ?? query).trim();
+      // Enter in an empty box must not send the carried subject on its own: a
+      // bare "This is about AD 2026-20-10." is not a question.
+      if (asked === "") return;
+      ask(followUp(asked, carryEnabled ? context : NO_CONTEXT));
+    },
+    [ask, carryEnabled, context, query],
+  );
 
   // Collect every revision the engine named, so blast radius has somewhere real
   // to point. The decided one goes first: it is the one with a proof behind it.
@@ -168,41 +272,26 @@ export default function Page() {
   }, []);
 
   /**
-   * NEED_CONFIG is the code the user can clear. Supplying the value re-asks the
-   * question with the value stated in it, so the engine reads it and decides
-   * again. The UI never folds a supplied value into a decision itself.
-   *
-   * The assertion is phrased from the rule the engine could not evaluate - its
-   * own operator and its own value, taken from the proof tree - rather than from
-   * the bare field name, which would send back "given it has equipment".
+   * The fields the engine itself named as unanswerable from the fleet record,
+   * each paired with the rule it could not evaluate. Taken from
+   * `decision.unknown_fields` rather than inferred from amber proof rows: the
+   * contract already distinguishes "the user can clear this" from "a human has
+   * to read the clause", and re-deriving it from the tree would lose that.
    */
-  const supplyValue = useCallback(
-    (field: string, value?: string) => {
-      if (source === "mock") {
-        replay("clean");
-        return;
-      }
-      const condition =
-        tree && !isProofTreeUnavailable(tree)
-          ? (tree.children ?? []).find((c) => c.field === field)
-          : undefined;
-      const subject = tree && !isProofTreeUnavailable(tree) ? tree.aircraft?.tail_number : null;
-      const named = value?.trim() || condition?.rule_value || field;
-      const assertion =
-        condition?.operator === "exists" || condition?.operator === "not_exists"
-          ? `${subject ?? "It"} is fitted with ${named}.`
-          : `Its ${field.replace(/_/g, " ")} is ${named}.`;
-      const restated = `${query.trim().replace(/\s+$/, "")} ${assertion}`;
-      setQuery(restated);
-      setTypeIn({ text: restated, nonce: Date.now() });
-    },
-    [query, replay, source, tree],
+  const missing = useMemo(
+    () => missingFields(state.decision, state.refusal),
+    [state.decision, state.refusal],
   );
+  const decidedAircraft = useMemo(() => decisionSubject(state.decision), [state.decision]);
+
+  const focusMissingInput = useCallback((field: string) => {
+    setFocusRequest({ field, nonce: Date.now() });
+  }, []);
 
   const envelope = state.done?.envelope ?? null;
 
   // Is there anything to read yet? The composer is the whole page until there
-  // is, and a quiet strip under the answer once there is -- the question stays
+  // is, and a quiet strip under the thread once there is -- the question stays
   // the thing you act on either way.
   const hasResult =
     state.answer.length > 0 ||
@@ -211,6 +300,12 @@ export default function Page() {
     state.decisionUnavailable !== null ||
     state.paragraphs.length > 0 ||
     state.status === "streaming";
+
+  const streaming = state.status === "streaming";
+
+  /** Changes as the live turn gains content, so the thread can re-pin scroll. */
+  const liveKey =
+    state.runId * 1_000 + state.answer.length + state.deltas.length + (state.refusal ? 1 : 0);
 
   const suggestions = useMemo(
     () => LIVE_DEMOS.slice(0, 3).map((d) => d.query),
@@ -225,10 +320,17 @@ export default function Page() {
     return `It reads ${c.ad_numbers.toLocaleString()} airworthiness directives across ${c.federal_register_pages.toLocaleString()} Federal Register pages.`;
   }, [health.health?.corpus]);
 
-  const askDirectly = useCallback((question: string) => {
+  /**
+   * A suggestion fills the composer and stops there. It never submits: the
+   * reader presses ask, and can edit the question first. Whatever is in the box
+   * at that moment is what is asked - a suggestion is a starting point, not a
+   * question the page asks on the reader's behalf.
+   */
+  const fillComposer = useCallback((question: string) => {
     setQuery(question);
-    setTypeIn({ text: question, nonce: Date.now() });
   }, []);
+
+  const showThread = turns.length > 0 || hasResult;
 
   return (
     <>
@@ -236,7 +338,7 @@ export default function Page() {
         href="#answer"
         className="t-label sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:border focus:border-accent focus:bg-raised focus:px-3 focus:py-2 focus:text-ink"
       >
-        Skip to the answer
+        Skip to the newest answer
       </a>
       <main className="flex min-h-dvh flex-col bg-bg lg:h-dvh lg:overflow-hidden">
         <header className="shrink-0 border-b border-line bg-raised">
@@ -274,174 +376,206 @@ export default function Page() {
           />
         ) : (
           <div className="flex flex-1 flex-col lg:grid lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_404px]">
-            {/* The answer, on its own, at a width prose can be read at. */}
+            {/* The thread, at a width prose can be read at. */}
             <div className="flex flex-col lg:min-h-0">
-              <div className="flex-1 lg:min-h-0 lg:overflow-y-auto">
-                <div className="mx-auto w-full max-w-[74ch] px-4 py-6 lg:px-8 lg:py-10">
-                  {!hasResult ? (
+              {!showThread ? (
+                <div className="flex-1 lg:min-h-0 lg:overflow-y-auto">
+                  <div className="mx-auto w-full max-w-[74ch] px-4 py-6 lg:px-8 lg:py-10">
                     <div className="flex flex-col gap-6">
                       <div className="flex flex-col gap-2">
                         <h1 className="t-heading text-ink">
-                          Which directives apply, what must you do, and by when?
+                          What do you want to know today?
                         </h1>
                         <p className="t-body max-w-[58ch] text-ink-2">
-                          Ask in plain English. {corpusBlurb} The answer is decided by a
-                          rules engine, never by the language model, and every sentence
-                          carries a citation you can open.
+                          Which directives apply, what you must do, and by when — ask in plain
+                          English, then keep asking. {corpusBlurb} The answer is decided by a
+                          rules engine, never by the language model, and every sentence carries a
+                          citation you can open.
                         </p>
                       </div>
                       <QueryBar
                         value={query}
                         onChange={setQuery}
                         onSubmit={submit}
-                        // `hasResult` is false here, and it is true whenever the
-                        // run is streaming, so the hero is never the streaming
-                        // state. TypeScript narrows this for us.
+                        // `showThread` is false here, and it is true whenever
+                        // the run is streaming, so the hero is never the
+                        // streaming state. TypeScript narrows this for us.
                         streaming={false}
                         typeIn={typeIn}
                         variant="hero"
                         suggestions={suggestions}
-                        onPick={askDirectly}
+                        onPick={fillComposer}
                       />
                     </div>
-                  ) : (
-                    <div className="flex flex-col gap-5">
-                      {superseded ? (
-                        <SupersededBanner
-                          detail={superseded}
-                          onOpenCurrent={openCurrentRevision}
-                        />
-                      ) : null}
-
-                      {blockingRefusal ? (
-                        <RefusalCard
-                          refusal={blockingRefusal}
-                          paragraphs={state.paragraphs}
-                          externalDocuments={externalDocuments}
-                          onSupplyValue={supplyValue}
-                        />
-                      ) : null}
-
-                      {state.decisionUnavailable && !blockingRefusal ? (
-                        <section
-                          aria-label="no applicability decision"
-                          className="border border-line-strong bg-sunken/60 px-3.5 py-3"
-                        >
-                          <p className="t-label mb-1">no applicability decision</p>
-                          <p className="t-body text-ink">{state.decisionUnavailable}</p>
-                          <p className="t-body mt-2 text-ink-2">
-                            Applicability is decided against one aircraft. Name a tail number
-                            or a serial number and the rules engine can run; a model alone
-                            matches hundreds of records and the engine will not pick one for
-                            you.
-                          </p>
-                        </section>
-                      ) : null}
-
-                      {state.withheldCount > 0 && state.answerWithheldBy ? (
-                        <p className="t-body border border-dashed border-line-strong px-3.5 py-2.5 text-ink-2">
-                          {state.withheldCount} sentence
-                          {state.withheldCount === 1 ? "" : "s"} passed citation verification
-                          but {state.answerWithheldBy} withholds the answer, so none is shown.
-                          The evidence they cited is in the evidence panel.
-                        </p>
-                      ) : null}
-
-                      {/*
-                        The answer is what the page is for, so it is the region a
-                        screen reader is told about as it arrives. "polite" waits
-                        for a pause rather than interrupting, and aria-busy marks
-                        the stream so a reader is not walked through a half-written
-                        sentence.
-                      */}
-                      <section
-                        id="answer"
-                        aria-label="answer"
-                        aria-live="polite"
-                        aria-busy={state.status === "streaming"}
-                      >
-                        {state.deltas.length === 0 &&
-                        !state.refusal &&
-                        !state.decisionUnavailable ? (
+                  </div>
+                </div>
+              ) : (
+                <Thread turns={turns} liveKey={liveKey} askKey={state.runId}>
+                  {/* The live turn. The only one that is announced. */}
+                  <div className="flex flex-col gap-5">
+                    {liveAsked ? (
+                      <header className="flex flex-col gap-1.5">
+                        <p className="t-label">you asked</p>
+                        <p className="t-subhead text-ink">{liveAsked}</p>
+                        {liveCarried ? (
                           <p className="t-mono text-ink-3">
-                            {state.status === "streaming"
-                              ? "retrieving and deciding\u2026"
-                              : "ask a question."}
+                            carried forward into the question: {liveCarried}
                           </p>
                         ) : null}
-                        <AnswerStream
-                          answer={state.answer}
-                          dropped={state.dropped}
-                          awaiting={state.awaitingVerification}
-                          activeCitationId={citation?.id ?? null}
-                          onFocusCitation={setCitation}
-                        />
+                      </header>
+                    ) : null}
+
+                    {/* Above everything it could possibly support, so no
+                        sentence resting on it can be read first. */}
+                    <SuppliedNotice supplied={liveSupplied} placement="live" />
+
+                    {superseded ? (
+                      <SupersededBanner
+                        detail={superseded}
+                        onOpenCurrent={openCurrentRevision}
+                      />
+                    ) : null}
+
+                    {blockingRefusal ? (
+                      <RefusalCard
+                        refusal={blockingRefusal}
+                        paragraphs={state.paragraphs}
+                        externalDocuments={externalDocuments}
+                        missing={missing}
+                        subject={decidedAircraft}
+                        asked={liveAsked || state.query}
+                        onAsk={ask}
+                        busy={streaming}
+                        focusRequest={focusRequest}
+                      />
+                    ) : null}
+
+                    {state.decisionUnavailable && !blockingRefusal ? (
+                      <section
+                        aria-label="no applicability decision"
+                        className="border border-line-strong bg-sunken/60 px-3.5 py-3"
+                      >
+                        <p className="t-label mb-1">no applicability decision</p>
+                        <p className="t-body text-ink">{state.decisionUnavailable}</p>
+                        <p className="t-body mt-2 text-ink-2">
+                          Applicability is decided against one aircraft. Name a tail number
+                          or a serial number and the rules engine can run; a model alone
+                          matches hundreds of records and the engine will not pick one for
+                          you.
+                        </p>
                       </section>
+                    ) : null}
 
-                      {envelope ? (
-                        <AnswerEnvelopePanel
-                          envelope={envelope}
-                          onSupplyValue={
-                            source === "engine" ? (field) => supplyValue(field) : undefined
-                          }
-                        />
-                      ) : null}
+                    {state.withheldCount > 0 && state.answerWithheldBy ? (
+                      <p className="t-body border border-dashed border-line-strong px-3.5 py-2.5 text-ink-2">
+                        {state.withheldCount} sentence
+                        {state.withheldCount === 1 ? "" : "s"} passed citation verification
+                        but {state.answerWithheldBy} withholds the answer, so none is shown.
+                        The evidence they cited is in the evidence panel.
+                      </p>
+                    ) : null}
 
-                      {state.failure ? (
-                        <p className="t-mono border border-line-strong px-3 py-2 text-ink-2">
-                          stream error: {state.failure}
+                    {/*
+                      The answer is what the page is for, so it is the region a
+                      screen reader is told about as it arrives. "polite" waits
+                      for a pause rather than interrupting, and aria-busy marks
+                      the stream so a reader is not walked through a half-written
+                      sentence.
+
+                      Only the newest turn carries this. Archived turns are plain
+                      articles: a thread that re-announced itself every time a
+                      question was asked would be unusable with a reader.
+                    */}
+                    <section
+                      id="answer"
+                      aria-label="newest answer"
+                      aria-live="polite"
+                      aria-busy={streaming}
+                    >
+                      {state.deltas.length === 0 &&
+                      !state.refusal &&
+                      !state.decisionUnavailable ? (
+                        <p className="t-mono text-ink-3">
+                          {streaming ? "retrieving and deciding…" : "ask a question."}
                         </p>
                       ) : null}
+                      <AnswerStream
+                        answer={state.answer}
+                        dropped={state.dropped}
+                        awaiting={state.awaitingVerification}
+                        activeCitationId={citation?.id ?? null}
+                        onFocusCitation={setCitation}
+                      />
+                    </section>
 
-                      {/* How the question was read. Collapsed: it explains the
-                          answer, it is not the answer. */}
-                      <Disclosure
-                        label="how this question was read"
-                        meta={`${state.entities.length} entities \u00b7 ${
-                          state.plan ? state.plan.intent : "no plan"
-                        }`}
-                      >
-                        <div className="flex flex-col gap-3 p-3">
-                          {state.entities.length === 0 ? (
-                            <p className="t-mono text-ink-3">awaiting entity pass&hellip;</p>
-                          ) : (
-                            <EntityChips entities={state.entities} query={state.query} />
-                          )}
-                          <PlanPanel
-                            plan={state.plan}
-                            planModel={state.planModel}
-                            unknownFields={state.decision?.unknown_fields ?? []}
-                          />
-                        </div>
-                      </Disclosure>
+                    {envelope ? (
+                      <AnswerEnvelopePanel
+                        envelope={envelope}
+                        onFocusMissingInput={
+                          blockingRefusal?.code === "NEED_CONFIG" ? focusMissingInput : undefined
+                        }
+                      />
+                    ) : null}
 
-                      {/*
-                        The citation claim is only true of sentences that are on
-                        screen, so it is not made when none are. Saying "every
-                        sentence above carries a citation" above an empty answer
-                        would be the exact kind of vacuous reassurance this
-                        product exists to avoid.
-                      */}
-                      <p className="t-mono border-t border-line pt-3 text-ink-3">
-                        {state.answer.length > 0
-                          ? "Every sentence above carries at least one citation that resolves to a paragraph in this run\u2019s retrieved set. "
-                          : "No answer prose is shown for this run. "}
-                        Applicability was decided by the rules engine, not by the language
-                        model.
+                    {state.failure ? (
+                      <p className="t-mono border border-line-strong px-3 py-2 text-ink-2">
+                        stream error: {state.failure}
                       </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+                    ) : null}
 
-              {hasResult ? (
+                    {/* How the question was read. Collapsed: it explains the
+                        answer, it is not the answer. */}
+                    <Disclosure
+                      label="how this question was read"
+                      meta={`${state.entities.length} entities · ${
+                        state.plan ? state.plan.intent : "no plan"
+                      }`}
+                    >
+                      <div className="flex flex-col gap-3 p-3">
+                        {state.entities.length === 0 ? (
+                          <p className="t-mono text-ink-3">awaiting entity pass&hellip;</p>
+                        ) : (
+                          <EntityChips entities={state.entities} query={state.query} />
+                        )}
+                        <PlanPanel
+                          plan={state.plan}
+                          planModel={state.planModel}
+                          unknownFields={state.decision?.unknown_fields ?? []}
+                        />
+                      </div>
+                    </Disclosure>
+
+                    {/*
+                      The citation claim is only true of sentences that are on
+                      screen, so it is not made when none are. Saying "every
+                      sentence above carries a citation" above an empty answer
+                      would be the exact kind of vacuous reassurance this
+                      product exists to avoid.
+                    */}
+                    <p className="t-mono border-t border-line pt-3 text-ink-3">
+                      {state.answer.length > 0
+                        ? "Every sentence above carries at least one citation that resolves to a paragraph in this run’s retrieved set. "
+                        : "No answer prose is shown for this run. "}
+                      Applicability was decided by the rules engine, not by the language
+                      model.
+                    </p>
+                  </div>
+                </Thread>
+              )}
+
+              {showThread ? (
                 <div className="shrink-0 border-t border-line bg-raised px-4 py-3 lg:px-8">
-                  <div className="mx-auto w-full max-w-[74ch]">
+                  <div className="mx-auto flex w-full max-w-[74ch] flex-col gap-2">
+                    <CarryNote
+                      carry={carry}
+                      enabled={carryEnabled}
+                      onToggle={setCarryEnabled}
+                    />
                     <QueryBar
                       value={query}
                       onChange={setQuery}
                       onSubmit={submit}
-                      streaming={state.status === "streaming"}
+                      streaming={streaming}
                       typeIn={typeIn}
                     />
                   </div>
@@ -449,8 +583,11 @@ export default function Page() {
               ) : null}
             </div>
 
-            {/* The proof. One instance, beside the answer on a wide screen and
-                under it on a narrow one, so nothing is unreachable on a phone. */}
+            {/* The proof. One instance, beside the newest turn on a wide screen
+                and under it on a narrow one, so nothing is unreachable on a
+                phone. It holds the current run's retrieved set only, which is
+                why an archived turn's citations are references rather than
+                buttons into it. */}
             <aside
               aria-label="evidence"
               className="flex min-h-0 flex-col border-t border-line lg:border-l lg:border-t-0"
@@ -477,11 +614,15 @@ export default function Page() {
           <div className="flex flex-wrap items-end gap-x-5 gap-y-2 px-4 py-1.5">
             <LatencyBadges stageMs={state.stageMs} totalMs={state.done?.total_ms ?? null} />
             <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-2">
-              <span className="t-mono text-ink-3">contract {CONTRACT_VERSION}</span>
+              <span className="t-mono text-ink-3">
+                {turns.length === 0
+                  ? `contract ${CONTRACT_VERSION}`
+                  : `${turns.length + 1} turns · contract ${CONTRACT_VERSION}`}
+              </span>
               <DevToolbar
                 active={scenarioId}
                 onReplay={replay}
-                streaming={state.status === "streaming"}
+                streaming={streaming}
                 source={source}
                 onSourceChange={changeSource}
               />

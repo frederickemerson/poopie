@@ -55,7 +55,15 @@ export function PlanPanel({ plan, planModel, unknownFields }: PlanPanelProps) {
 
   return (
     <div className="flex flex-col">
-      <dl className="grid grid-cols-[86px_1fr] gap-x-2">
+      {/*
+        The label column sizes to the longest label rather than to a guessed
+        pixel width. It was 86px, and "manufacturer" renders at ~88px, so the
+        label overran its track and was drawn on top of the value. `subgrid`
+        keeps every row on the same two tracks, so content-sizing costs no
+        alignment; `minmax(0,1fr)` lets the value truncate instead of pushing
+        the label narrower than its text.
+      */}
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3">
         {slotsOf(plan).map((slot, i) => {
           const amber = slot.value === null && flagged.has(slot.key);
           return (
@@ -66,10 +74,10 @@ export function PlanPanel({ plan, planModel, unknownFields }: PlanPanelProps) {
               transition={{ duration: dur(180), delay: stagger(26) * i }}
               className="col-span-2 grid grid-cols-subgrid items-baseline border-b border-line px-3 py-[5px] last:border-b-0"
             >
-              <dt className="t-label !tracking-[0.06em]">{slot.label}</dt>
+              <dt className="t-label !tracking-[0.06em] break-words">{slot.label}</dt>
               <dd
                 className={[
-                  "t-mono truncate",
+                  "t-mono min-w-0 truncate",
                   slot.value === null ? "text-ink-3" : "text-ink",
                   amber ? "pulse-ring -mx-1 inline-block rounded-sm border border-dashed border-maybe px-1 !text-maybe" : "",
                 ].join(" ")}
