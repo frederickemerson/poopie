@@ -20,8 +20,8 @@
     },
     "Revision": {
       "key": "revision_id",
-      "fields": ["revision_id", "ad_number", "docket_id", "fr_document_number", "amendment", "publication_date", "effective_on", "full_text_xml_url", "is_current", "superseded_by"],
-      "note": "One Federal Register document. revision_id == fr_document_number. amendment from docket_ids, e.g. '39-23502'."
+      "fields": ["revision_id", "ad_number", "docket_id", "fr_document_number", "amendment", "publication_date", "effective_on", "full_text_xml_url", "is_current", "superseded_by", "content_sha256", "retrieved_at", "source_bytes"],
+      "note": "One Federal Register document. revision_id == fr_document_number. amendment from docket_ids, e.g. '39-23502'. content_sha256/retrieved_at pin exactly which bytes an answer was derived from, so a citation is reproducible after the source changes."
     },
     "Paragraph": {
       "key": "paragraph_id",
@@ -30,8 +30,8 @@
     },
     "Rule": {
       "key": "rule_id",
-      "fields": ["rule_id", "revision_id", "paragraph_id", "field", "operator", "value", "source_quote", "confidence", "unparsed_reason"],
-      "note": "One applicability condition. source_quote MUST be a verbatim substring of its Paragraph.text."
+      "fields": ["rule_id", "revision_id", "paragraph_id", "field", "operator", "value", "source_quote", "confidence", "unparsed_reason", "review_status", "reviewed_by", "reviewed_at", "review_note"],
+      "note": "One applicability condition. source_quote MUST be a verbatim substring of its Paragraph.text. Extracted rules are DRAFTS: review_status defaults to UNREVIEWED and schema validity is not correctness."
     },
     "Action": {
       "key": "action_id",
@@ -94,6 +94,9 @@
       "EXTERNAL_SOURCE_REQUIRED"
     ],
     "document_stage": ["PROPOSED", "ADOPTED_NOT_YET_EFFECTIVE", "EFFECTIVE", "SUPERSEDED", "UNKNOWN"],
+    "review_status": ["UNREVIEWED", "ACCEPTED", "CORRECTED", "REJECTED"],
+    "answer_status": ["ANSWERED", "PARTIAL", "REFUSED"],
+    "traversal_outcome": ["COMPLETE", "BOUNDED", "CYCLE_DETECTED", "MISSING_DOCUMENT"],
     "authority": ["FAA", "EASA", "TCCA", "ANAC", "CAAC", "UNKNOWN"],
     "source": ["nprm_spreadsheet", "federal_register", "opensky", "derived"]
   },
@@ -105,6 +108,21 @@
     "OUT_OF_SCOPE":            {"trigger": "Query plan intent outside AD content, or a model absent from the corpus.", "user_message_key": "scope_statement", "resolvable_by": "none"},
     "SUPERSEDED":              {"trigger": "Asked about a revision that has a newer one. Answer IS still given, with a banner.", "user_message_key": "superseded_warning", "resolvable_by": "read the current revision", "blocks_answer": false},
     "EXTERNAL_SOURCE_REQUIRED": {"trigger": "Applicability or compliance time is delegated to a ForeignAD or ServiceBulletin with held=false.", "user_message_key": "external_doc_needed", "resolvable_by": "load the referenced document"}
+  },
+
+  "answer_envelope": {
+    "note": "The full shape of a delivered answer. Every field is always present; a field that cannot be filled carries an explicit reason, never silence.",
+    "fields": {
+      "answer_status": "one of enums.answer_status",
+      "document_stage": "one of enums.document_stage - whether this imposes an obligation now",
+      "applicability_result": "one of enums.decision, or null when no aircraft was resolved",
+      "evaluated_conditions": "the proof tree: each condition, the aircraft value, the rule value, the outcome, the source quote",
+      "revision_status": "current / superseded, with the superseding revision when known",
+      "citations": "claim-level; every sentence carries >=1 citation_id resolved in code",
+      "missing_inputs": "what the user could supply to resolve a NEED_CONFIG, named exactly",
+      "limitations": "what this answer does NOT establish, including unheld external documents and unreviewed rules",
+      "traversal": "one of enums.traversal_outcome, with the references followed and any document that was missing"
+    }
   },
 
   "citation": {

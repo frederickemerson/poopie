@@ -27,6 +27,15 @@ export const REFUSAL_CODE: readonly RefusalCode[] = ["NEED_CONFIG", "CANNOT_DETE
 export type DocumentStage = "PROPOSED" | "ADOPTED_NOT_YET_EFFECTIVE" | "EFFECTIVE" | "SUPERSEDED" | "UNKNOWN";
 export const DOCUMENT_STAGE: readonly DocumentStage[] = ["PROPOSED", "ADOPTED_NOT_YET_EFFECTIVE", "EFFECTIVE", "SUPERSEDED", "UNKNOWN"] as const;
 
+export type ReviewStatus = "UNREVIEWED" | "ACCEPTED" | "CORRECTED" | "REJECTED";
+export const REVIEW_STATUS: readonly ReviewStatus[] = ["UNREVIEWED", "ACCEPTED", "CORRECTED", "REJECTED"] as const;
+
+export type AnswerStatus = "ANSWERED" | "PARTIAL" | "REFUSED";
+export const ANSWER_STATUS: readonly AnswerStatus[] = ["ANSWERED", "PARTIAL", "REFUSED"] as const;
+
+export type TraversalOutcome = "COMPLETE" | "BOUNDED" | "CYCLE_DETECTED" | "MISSING_DOCUMENT";
+export const TRAVERSAL_OUTCOME: readonly TraversalOutcome[] = ["COMPLETE", "BOUNDED", "CYCLE_DETECTED", "MISSING_DOCUMENT"] as const;
+
 export type Authority = "FAA" | "EASA" | "TCCA" | "ANAC" | "CAAC" | "UNKNOWN";
 export const AUTHORITY: readonly Authority[] = ["FAA", "EASA", "TCCA", "ANAC", "CAAC", "UNKNOWN"] as const;
 
