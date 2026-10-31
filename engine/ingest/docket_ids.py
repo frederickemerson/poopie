@@ -4,11 +4,17 @@
 and AD number. The prose body of the rule is never consulted for these three
 facts: it restates them in free text and restates them inconsistently.
 
-Shapes observed across all 2,166 FAA final rules published 2021-01-01..2026-10-31
-(every one of these is real, each drove a branch below)::
+Shapes observed across every FAA final rule in the cached index (2,166 documents
+at the time of writing, and growing as the harvest runs -- so the counts here
+are deliberately not pinned past the one that matters, which is that each shape
+below occurred at least once and drove a branch). Recount any time with::
+
+    python3 -m engine.ingest.docket_ids --survey
+
+Every one of these is real::
 
     ["Docket No. FAA-2026-2723", "Project Identifier AD-2024-00429-A",
-     "Amendment 39-23502", "AD 2026-21-13"]      # the common case, 2137 docs
+     "Amendment 39-23502", "AD 2026-21-13"]      # the common case, ~99% of docs
     "Docket No.: FAA-2021-0419"                  # colon after No.
     "Docket FAA-2023-2234"                       # no "No."
     "Docket No. FAA-2022-0992 Project Identifier MCAI-2022-00173-R"  # two facts, one entry
@@ -131,3 +137,86 @@ def normalize_sheet_docket(raw: str) -> tuple[list[str], str]:
         if item not in seen:
             seen.append(item)
     return seen, raw
+
+
+def _survey() -> int:
+    """Recount this module's docstring against the cached Federal Register index.
+
+    The docstring names shapes rather than frequencies on purpose: the harvest
+    keeps adding documents, so a pinned count is stale the moment it is
+    written. What this proves is the claim that actually matters -- every
+    branch below is driven by real data, and nothing in the index fails to
+    yield a docket number.
+    """
+    import collections
+    import json
+
+    from engine.paths import FR_INDEX_CACHE
+
+    # Two populations, reported separately because they are not the same thing
+    # and conflating them is how a percentage becomes wrong. rules_*.json is
+    # the windowed FAA final-rule index -- the population this parser's
+    # branches were derived from. docket_*.json is a per-docket lookup, which
+    # returns every document filed under a docket including notices and
+    # proposals, so its mix of shapes is different by construction.
+    populations: dict[str, dict[str, list[str]]] = {
+        "windowed FAA final rules (rules_*.json)": {},
+        "per-docket lookups (docket_*.json)": {},
+    }
+    for path in sorted(FR_INDEX_CACHE.glob("*.json")):
+        if path.name.startswith("rules_"):
+            bucket = populations["windowed FAA final rules (rules_*.json)"]
+        elif path.name.startswith("docket_"):
+            bucket = populations["per-docket lookups (docket_*.json)"]
+        else:
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        for row in payload.get("results") or []:
+            number = row.get("document_number")
+            if number and row.get("docket_ids"):
+                bucket[number] = row["docket_ids"]
+
+    if not any(populations.values()):
+        print(f"no cached index under {FR_INDEX_CACHE}; run the ingest first")
+        return 1
+
+    print(f"cached index: {FR_INDEX_CACHE}")
+    for name, documents in populations.items():
+        print()
+        print(f"{name}: {len(documents)} documents with docket_ids")
+        if not documents:
+            continue
+        shapes: collections.Counter[str] = collections.Counter()
+        no_docket = no_ad = 0
+        for entries in documents.values():
+            parsed = parse_docket_ids(entries)
+            if not parsed.docket_id:
+                no_docket += 1
+            if not parsed.ad_number:
+                no_ad += 1
+            listed = entries if isinstance(entries, list) else [entries]
+            if len(listed) == 4 and str(listed[0]).startswith("Docket No. FAA-"):
+                shapes["four entries, 'Docket No. FAA-' first"] += 1
+            else:
+                shapes["anything else"] += 1
+        total = len(documents)
+        for shape, count in shapes.most_common():
+            print(f"  {shape}: {count} ({100 * count / total:.1f}%)")
+        print(f"  no docket number parsed: {no_docket}")
+        print(f"  no AD number parsed: {no_ad} (expected: documents that are not ADs)")
+    return 0
+
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Survey the cached docket_ids shapes.")
+    parser.add_argument("--survey", action="store_true", help="recount the docstring's claims")
+    args = parser.parse_args()
+    if not args.survey:
+        parser.error("nothing to do; pass --survey")
+    sys.exit(_survey())
