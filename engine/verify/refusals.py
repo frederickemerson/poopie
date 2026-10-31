@@ -179,6 +179,35 @@ def not_an_ad_question(
     )
 
 
+def model_names_a_fleet(
+    designation: str, series: list[str], evidence_paragraph_ids: list[str]
+) -> Refusal:
+    """An applicability question whose only subject is a model designation.
+
+    An applicability verdict is per-aircraft: the rules engine resolves one
+    airframe and checks its serial number against the directive's own
+    conditions. A model designation names a set instead -- "my 767" is several
+    hundred airframes across five series -- so there is no airframe to decide
+    about, however well the question retrieves.
+
+    NEED_CONFIG rather than OUT_OF_SCOPE because the corpus does hold these
+    directives: the series it holds them under are named here, so the engineer
+    can see what to pick from.
+    """
+    covered = ", ".join(sorted(series)[:6])
+    more = f" and {len(series) - 6} more" if len(series) > 6 else ""
+    return build(
+        CODE_NEED_CONFIG,
+        f"Whether a directive applies is decided per airframe, against that "
+        f"aircraft's serial number, and {designation} names a set rather than an "
+        f"aircraft. Directives here cover {covered}{more}. Name a tail number, a "
+        f"serial number, or the exact series and ask again.",
+        evidence_paragraph_ids,
+        resolver="the engineer names the airframe or the exact series",
+        allow_empty_evidence=not evidence_paragraph_ids,
+    )
+
+
 def under_specified_ad_question(
     intent: str | None, evidence_paragraph_ids: list[str]
 ) -> Refusal:

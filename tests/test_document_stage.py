@@ -36,7 +36,8 @@ TODAY = dt.date(2026, 10, 31)
 def _jsonl(path: Path) -> list[dict]:
     if not path.exists():
         return []
-    return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return [json.loads(line) for line in lines if line.strip()]
 
 
 # --------------------------------------------------------------------- unit
@@ -85,8 +86,18 @@ def test_explanation_names_the_effective_date():
 
 # ---------------------------------------------------------------- the corpus
 
-def test_no_nprm_text_is_citable():
-    """The load-bearing guarantee: only Revision paragraphs can be cited."""
+def test_only_revision_paragraphs_are_in_the_obligation_file():
+    """The load-bearing guarantee, as contract 1.2.0 states it.
+
+    A proposal MAY be indexed, retrieved and cited -- the challenge's dataset is
+    431 of them -- but it may never supply an obligation or a deadline. So the
+    guarantee is no longer "no NPRM text exists" but "no NPRM text is in the
+    file the obligation path reads". ``data/build/paragraphs.jsonl`` is that
+    file: ``engine.rules`` turns its records into Actions carrying
+    ``compliance_time``. Proposals live in ``nprm_paragraphs.jsonl``.
+
+    The fence itself is tested in tests/test_nprm_retrieval.py.
+    """
     paragraphs = _jsonl(BUILD / "paragraphs.jsonl")
     if not paragraphs:
         pytest.skip("no built paragraphs yet")
@@ -98,8 +109,29 @@ def test_no_nprm_text_is_citable():
     assert not orphans, (
         f"{len(orphans)} citable paragraphs do not trace to a Revision: {orphans[:5]}"
     )
-    leaked = [p["paragraph_id"] for p in paragraphs if p.get("revision_id") in nprm_ids]
-    assert not leaked, f"NPRM text reached the citable index: {leaked[:5]}"
+    leaked = [
+        p["paragraph_id"]
+        for p in paragraphs
+        if p.get("revision_id") in nprm_ids
+        or p.get("nprm_id")
+        or p.get("source_kind") == "NPRM"
+        or p.get("document_stage") == PROPOSED
+    ]
+    assert not leaked, f"NPRM text reached the obligation file: {leaked[:5]}"
+
+
+def test_proposal_text_is_indexed_and_every_line_of_it_is_proposed():
+    """The other half: a build that indexed nothing would satisfy the fence and
+    fail the task. If proposals were harvested they must all be staged."""
+    proposals = _jsonl(BUILD / "nprm_paragraphs.jsonl")
+    if not proposals:
+        pytest.skip("no harvested proposal text yet")
+    nodes = _jsonl(BUILD / "nodes.jsonl")
+    nprm_ids = {n["nprm_id"] for n in nodes if n.get("_type") == "NPRM"}
+    wrong = [p["paragraph_id"] for p in proposals if p.get("document_stage") != PROPOSED]
+    assert not wrong, f"proposal paragraphs not staged {PROPOSED}: {wrong[:5]}"
+    orphans = [p["paragraph_id"] for p in proposals if p.get("nprm_id") not in nprm_ids]
+    assert not orphans, f"proposal paragraphs with no NPRM node: {orphans[:5]}"
 
 
 def test_corpus_breakdown_accounts_for_every_revision():

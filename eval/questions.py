@@ -51,7 +51,8 @@ class Question:
 def _read(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return [json.loads(line) for line in lines if line.strip()]
 
 
 @dataclass

@@ -35,7 +35,9 @@ def _unavailable(*_a, **_k):
 
 def test_identical_input_gives_identical_order():
     texts = [f"t{i}" for i in range(10)]
-    scorer = lambda q, ts: [float(len(t) % 3) for t in ts]  # many ties
+    def scorer(q, ts):  # many ties, so the tie-break is what is under test
+        return [float(len(t) % 3) for t in ts]
+
     a = rr.rerank_candidates("q", texts, scorer=scorer)
     b = rr.rerank_candidates("q", texts, scorer=scorer)
     assert a.order == b.order and a.applied

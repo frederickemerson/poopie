@@ -19,7 +19,6 @@ from typing import Any
 
 from . import match, serials
 from .vocab import (
-    LIST_OPERATORS,
     NEGATED,
     OP_EQ,
     OP_EXISTS,
@@ -27,7 +26,6 @@ from .vocab import (
     OP_MODEL,
     OP_SERIAL_IN,
     OP_UNPARSED,
-    RANGE_OPERATORS,
     aircraft_field,
 )
 

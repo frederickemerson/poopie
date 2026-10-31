@@ -13,9 +13,11 @@ score wherever a fact exists:
 2. A model or manufacturer no loaded directive concerns -- distinguished from
    "we cannot filter by model yet", which is not the same claim.
    ``OUT_OF_SCOPE``.
-3. Nothing retrieved at all. ``NO_EVIDENCE``.
-4. The plan names nothing this corpus indexes and similarity is below the floor.
-   ``OUT_OF_SCOPE``.
+3. The plan names nothing this corpus is keyed on: ``OUT_OF_SCOPE`` when the
+   plan's intent is the catch-all, ``NEED_CONFIG`` when it is AD-specific.
+   Checked before anything score-based, because it is a fact about the question
+   rather than about the corpus.
+4. Nothing retrieved at all. ``NO_EVIDENCE``.
 5. Best-passage similarity below the tuned floor. ``NO_EVIDENCE``.
 6. The rules engine's own refusal, passed through unchanged.
 7. ``SUPERSEDED``, appended whether or not anything above fired, because it does
@@ -35,6 +37,7 @@ if str(ROOT) not in sys.path:
 
 from engine.retrieval.corpus import Corpus  # noqa: E402
 from engine.retrieval.entities import Entities  # noqa: E402
+from engine.retrieval.graph_filter import series_covering  # noqa: E402
 from engine.retrieval.plan import QueryPlan  # noqa: E402
 from engine.retrieval.search import SearchResult  # noqa: E402
 from engine.verify import refusals as R  # noqa: E402
@@ -123,6 +126,28 @@ def _superseded_refusals(
     return out
 
 
+def _model_only_subject(entities: Entities, plan: QueryPlan | None) -> str | None:
+    """The sole model designation an applicability question gives, if that is all.
+
+    ``applicability`` is the one intent whose output is a verdict about a single
+    airframe, so it is the one intent a model designation cannot satisfy.
+    ``fleet_impact`` legitimately takes a model and is not considered here, and
+    a question about a document rather than an aircraft is not under-specified
+    just because it mentions a type.
+    """
+    if plan is None or plan.intent != "applicability":
+        return None
+    if plan.ad_number or plan.docket_id or entities.has_identifier:
+        return None
+    if entities.tail_numbers or entities.serial_numbers:
+        return None
+    aircraft = plan.aircraft or {}
+    if aircraft.get("tail_number") or aircraft.get("serial_number"):
+        return None
+    designation = (aircraft.get("model") or aircraft.get("typecode") or "").strip()
+    return designation or None
+
+
 def evaluate_gate(
     corpus: Corpus,
     entities: Entities,
@@ -154,12 +179,6 @@ def evaluate_gate(
         gate.refusals.append(R.model_not_in_corpus(absent_models, evidence))
         return gate
 
-    if not result.hits:
-        gate.refusals.append(
-            R.nothing_above_threshold(0.0, [], corpus_size=corpus_size)
-        )
-        return gate
-
     # The question identifies nothing this corpus is keyed on: no directive, no
     # docket, no aircraft, from either the plan or the entity pass.
     names_nothing = (
@@ -178,14 +197,29 @@ def evaluate_gate(
     # what to type. Both are read off the plan, never off the wording.
     plan_names_nothing = names_nothing and plan.intent == "search"
     under_specified = names_nothing and plan.intent != "search"
-    below_floor = result.top_cosine < cosine_min
 
-    if plan_names_nothing and below_floor:
+    # Asked before "did we retrieve anything", and deliberately not conjoined
+    # with the similarity floor. Both of those are statements about the corpus;
+    # naming nothing is a statement about the question, and it stays true at
+    # every score. Conjoining them is what let six traps through: "what is the
+    # compliance time?", naming no directive, retrieves a real compliance
+    # paragraph from an arbitrary directive at cosine 0.54, so the floor never
+    # fired and a confident, correctly cited answer to a question nobody asked
+    # went out. A high score is the dangerous case here, not the safe one.
+    if plan_names_nothing:
         gate.refusals.append(R.not_an_ad_question(plan.topic, evidence))
         return gate
-    if under_specified and below_floor:
+    if under_specified:
         gate.refusals.append(R.under_specified_ad_question(plan.intent, evidence))
         return gate
+
+    if not result.hits:
+        gate.refusals.append(
+            R.nothing_above_threshold(0.0, [], corpus_size=corpus_size)
+        )
+        return gate
+
+    below_floor = result.top_cosine < cosine_min
     if below_floor:
         # Recorded before the return, not after it. This note sat below the
         # NO_EVIDENCE return and so could never be reached, which hid exactly
@@ -214,6 +248,28 @@ def evaluate_gate(
                     allow_empty_evidence=not evidence,
                 )
             )
+
+    # Asked last, and only if nothing has blocked yet, because the rules engine's
+    # own refusal is the more specific answer whenever it has one: a revision that
+    # delegates applicability to a document we do not hold is EXTERNAL_SOURCE_
+    # REQUIRED whether or not an airframe was named, and must not be demoted to a
+    # question about the aircraft.
+    if gate.answer_allowed:
+        designation = _model_only_subject(entities, plan)
+        if designation is not None:
+            series = series_covering(corpus, designation)
+            if series:
+                gate.refusals.append(
+                    R.model_names_a_fleet(designation, series, evidence)
+                )
+                return gate
+            if series is not None:
+                # Not a prefix of any series in 1,836 indexed designations, so
+                # the claim "no directive here concerns it" is supported.
+                gate.refusals.append(R.model_not_in_corpus([designation], evidence))
+                return gate
+            # series is None: the graph holds no aircraft rules, so absence
+            # cannot be distinguished from an unbuilt filter. Say nothing.
 
     gate.refusals.extend(_superseded_refusals(corpus, result, entities))
     return gate
