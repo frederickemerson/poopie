@@ -22,6 +22,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 from engine.paths import BUILD
+from engine.api.applicability import DELEGATIONS_PATH
+from engine.rules.engine import decide
 
 QuestionClass = Literal[
     "answerable", "applicability_trap", "revision", "out_of_scope", "ambiguous"
@@ -78,7 +80,13 @@ class CorpusFacts:
                 for n in _read(BUILD / "nodes.aircraft.jsonl")
                 if n.get("_type") == "Aircraft"
             ],
-            delegations=_read(BUILD / "delegations.jsonl"),
+            # The same file the engine decides from, imported rather than
+            # spelled again: these were two literals and they drifted. The
+            # eval read a stale delegations.jsonl holding 36 rows while the
+            # engine read externals.jsonl holding 1,922, so the trap bucket
+            # was built from 1.9% of the delegations, and 4 of its facts were
+            # no longer true at all.
+            delegations=_read(DELEGATIONS_PATH),
             rules=_read(BUILD / "rules.jsonl"),
         )
 
@@ -188,8 +196,45 @@ def _applicability_traps(facts: CorpusFacts, limit: int = 10) -> list[Question]:
 
 
 def _needs_config(facts: CorpusFacts, limit: int = 6) -> list[Question]:
-    """Rules on fields the fleet record structurally cannot carry."""
+    """Questions whose only blocker is a value the fleet record cannot carry.
+
+    The (revision, aircraft) pair is *selected* with the pure rules engine: it
+    enters this bucket only if decide() reaches a NEED_CONFIG refusal on it.
+    That is selection, not grading. It establishes that the question is the
+    kind of question this bucket exists to ask, and the run then asserts the
+    end-to-end behaviour selection never touched -- the code the gate emits,
+    that the answer is actually withheld, and that the envelope names the
+    missing field and says the engineer can supply it.
+
+    Selecting on nothing but "this revision has a rule on an unavailable
+    field" produced questions that were not NEED_CONFIG cases at all, and the
+    eval asserted the wrong code for them:
+
+      * the revision also held a clause the extractor could not parse, where
+        the engine correctly says CANNOT_DETERMINE -- no value the engineer
+        supplies would settle an unparsable clause;
+      * the revision was superseded, so a non-blocking SUPERSEDED refusal rode
+        along and the question measured supersession as much as the value;
+      * the chosen aircraft was already excluded by a serial-number rule, so
+        the missing equipment value never came up and DOES_NOT_APPLY was the
+        honest answer.
+
+    All three are the engine being right and the label being wrong.
+    """
     unavailable = {"equipment", "modification", "part_number", "category"}
+
+    by_revision: dict[str, list[dict[str, Any]]] = {}
+    for rule in facts.rules:
+        rid = rule.get("revision_id")
+        if rid:
+            by_revision.setdefault(rid, []).append(rule)
+
+    externals_by_revision: dict[str, list[dict[str, Any]]] = {}
+    for row in facts.delegations:
+        rid = row.get("revision_id")
+        if rid:
+            externals_by_revision.setdefault(rid, []).append(row)
+
     out: list[Question] = []
     seen: set[str] = set()
     for rule in facts.rules:
@@ -203,18 +248,35 @@ def _needs_config(facts: CorpusFacts, limit: int = 6) -> list[Question]:
         seen.add(rid)
         rev = facts.revision_for(rid)
         ad = (rev or {}).get("ad_number")
-        tail = facts.aircraft[0]["tail_number"] if facts.aircraft else None
-        if not ad or not tail:
+        if not ad:
             continue
+
+        chosen = None
+        for aircraft in facts.aircraft:
+            if not aircraft.get("tail_number"):
+                continue
+            decision = decide(
+                aircraft,
+                by_revision.get(rid, []),
+                revision_id=rid,
+                external_applicability=externals_by_revision.get(rid, []),
+            )
+            refusal = decision.refusal or {}
+            if refusal.get("code") == "NEED_CONFIG":
+                chosen = aircraft
+                break
+        if chosen is None:
+            continue
+
         out.append(
             Question(
                 f"cfg-{len(out) + 1:02d}",
-                f"Does AD {ad} apply to {tail}?",
+                f"Does AD {ad} apply to {chosen['tail_number']}?",
                 "applicability_trap",
                 expect_refusal="NEED_CONFIG",
                 expect_decision="CANNOT_DETERMINE",
                 expect_ad_number=ad,
-                tail_number=tail,
+                tail_number=chosen["tail_number"],
                 notes=f"conditioned on {rule.get('field')}, which no fleet record carries",
             )
         )

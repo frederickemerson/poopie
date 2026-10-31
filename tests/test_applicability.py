@@ -225,3 +225,46 @@ def test_every_command_a_reason_tells_the_user_to_run_exists():
     named = re.findall(r"make ([a-z][a-z-]*)", outcome.reason or "")
     assert named, "the reason should tell the user what to run"
     assert not set(named) - targets, f"no such make target: {set(named) - targets}"
+
+
+# ------------------------------------------- one source of delegation truth
+
+
+def test_the_eval_decides_from_the_same_delegations_as_the_engine():
+    """Two modules spelled this path as two literals and they drifted.
+
+    The engine read externals.jsonl (1,922 rows) while the eval read a stale
+    delegations.jsonl (36 rows), so the labelled set was built from 1.9% of
+    the delegations and four of its facts were no longer true. The eval now
+    imports the engine's constant, and this pins that they resolve to the same
+    records -- a count check is enough, because the failure was two files, not
+    two readings of one file.
+    """
+    store = ApplicabilityStore.load()
+    held_by_engine = sum(len(v) for v in store.delegations_by_revision.values())
+    if not held_by_engine:
+        pytest.skip("no delegations built")
+
+    from eval.questions import CorpusFacts
+
+    assert len(CorpusFacts.load().delegations) == held_by_engine
+
+
+def test_no_module_resolves_a_path_to_the_abandoned_delegations_file():
+    """delegations.jsonl was written by a CLI that no longer exists. Anything
+    still reading it is reading a snapshot that stopped updating.
+
+    Only a quoted literal counts: both files that caused this carry a comment
+    naming the file in prose, and recording why it was abandoned is the
+    opposite of the mistake.
+    """
+    offenders = []
+    for path in sorted(ROOT.glob("**/*.py")):
+        if ".venv" in path.parts or "site-packages" in path.parts:
+            continue
+        if path.name == "test_applicability.py":
+            continue
+        text = path.read_text(encoding="utf-8")
+        if '"delegations.jsonl"' in text or "'delegations.jsonl'" in text:
+            offenders.append(str(path.relative_to(ROOT)))
+    assert not offenders, f"still resolving a path to the abandoned file: {offenders}"
