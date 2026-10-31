@@ -122,7 +122,7 @@ vocabulary differently is a failure this project has seen before.
 | Source | What it gives | Note |
 |---|---|---|
 | Federal Register API | Final ADs, full XML, `docket_ids`, `effective_on` | No auth. 2,117 ADs harvested over 2021-01-01..2026-10-31; ~10,360 available in total |
-| AD NPRM spreadsheet | 431 proposed rules, 323 dockets | Joins to final rules on docket number |
+| AD NPRM spreadsheet | 431 rows over 322 dockets | 306 are live proposals; 125 are withdrawals and comment-period notices. Joins to final rules on docket number |
 | OpenSky aircraft DB | 478 real aircraft, 30 operators | Real serials. **No synthesized values** |
 
 The fleet is real. Fields the source does not carry stay null, and null is what
@@ -171,7 +171,7 @@ backend, and the UI against that live backend (tsc clean, `pnpm build` passes,
 zero console errors on a live run).
 
 The corpus is the full window: **2,161 revisions / 2,117 ADs / 25,687
-paragraphs**, plus 431 NPRMs. Retrieval still measures p95 39 ms against a
+paragraphs**, plus 431 NPRM rows. Retrieval still measures p95 39 ms against a
 100 ms target at that size.
 
 Not finished, stated plainly:

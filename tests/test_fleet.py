@@ -252,3 +252,83 @@ def test_built_fleet_serials_and_tails_exist_verbatim_in_full_source():
             if key in pairs:
                 found.add(key)
     assert found == pairs
+
+
+# ------------------------------------------------- variant-level model index
+# The series table carries type-level names ("737-800") and says so in its own
+# note, pointing at Aircraft.model for variants. These cover that second half:
+# without it, 423 of the 478 built aircraft carried a model string the engine
+# did not recognise, and the graph filter silently stopped narrowing by type.
+
+
+def test_variant_index_is_empty_rather_than_guessing_when_the_fleet_is_absent(monkeypatch):
+    normalize.variant_model_index.cache_clear()
+    monkeypatch.setattr(normalize, "BUILD", Path("/nonexistent-build-dir"))
+    try:
+        assert normalize.variant_model_index() == {}
+    finally:
+        normalize.variant_model_index.cache_clear()
+
+
+@pytest.mark.skipif(not BUILD_NODES.exists(), reason="fleet not built")
+def test_every_built_aircraft_model_resolves_to_a_typecode():
+    from engine.retrieval.entities import _model_index
+
+    index = _model_index()
+    models = [
+        json.loads(line)["model"]
+        for line in BUILD_NODES.read_text(encoding="utf-8").splitlines()
+        if line.strip() and json.loads(line).get("_type") == "Aircraft"
+        and (json.loads(line).get("model") or "").strip()
+    ]
+    unresolved = sorted({m for m in models if normalize._model_key(m) not in index})
+    assert not unresolved, (
+        f"{len(unresolved)} fleet model strings resolve to no type, so a question "
+        f"naming one cannot be narrowed: {unresolved[:10]}"
+    )
+
+
+@pytest.mark.skipif(not BUILD_NODES.exists(), reason="fleet not built")
+def test_a_variant_resolves_to_the_series_typecode_not_to_itself():
+    from engine.retrieval.entities import extract_entities
+
+    found = extract_entities("Which ADs apply to my Airbus A330-941?")
+    assert found.typecodes == ["A339"]
+    assert found.manufacturers == ["Airbus"]
+    assert not found.ambiguous, "a known variant must not also be reported as ambiguous"
+
+
+@pytest.mark.skipif(not BUILD_NODES.exists(), reason="fleet not built")
+def test_every_series_name_still_reaches_its_own_typecode():
+    """No source may displace a series name's own type. The fleet is added after
+    the table and only ever extends an entry, so a variant cannot overwrite the
+    vocabulary the documents are written in."""
+    from engine.retrieval.entities import _model_index
+
+    index = _model_index()
+    for typecode, spec in normalize.table()["types"].items():
+        for model in spec["ad_models"]:
+            typecodes, manufacturer = index[normalize._model_key(model)]
+            assert typecode in typecodes
+            assert manufacturer == spec["manufacturer"]
+
+
+def test_a_designation_naming_two_types_keeps_both():
+    """"ERJ 170-200" is both E75L and E75S -- the long- and short-wing Embraer
+    175. The table lists it under both, and dropping either silently answers
+    for half the type. The graph filter unions typecodes, so both belong."""
+    from engine.retrieval.entities import _model_index, extract_entities
+
+    typecodes, manufacturer = _model_index()[normalize._model_key("ERJ 170-200")]
+    assert set(typecodes) == {"E75L", "E75S"}
+    assert manufacturer == "Embraer"
+    assert set(extract_entities("ADs for the ERJ 170-200").typecodes) == {"E75L", "E75S"}
+
+
+@pytest.mark.skipif(not BUILD_NODES.exists(), reason="fleet not built")
+def test_every_variant_maps_to_a_typecode_the_table_knows():
+    for variant, (typecode, manufacturer) in normalize.variant_model_index().items():
+        assert typecode in normalize.table()["types"], (
+            f"{variant} claims typecode {typecode}, which the series table does not define"
+        )
+        assert manufacturer, f"{variant} resolved to no manufacturer"

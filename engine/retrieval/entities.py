@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from engine.graph.normalize import table  # noqa: E402
+from engine.graph.normalize import _model_key, table, variant_model_index  # noqa: E402
 
 #: Modern FAA docket, the format contracts/contract.json pins for Docket.key.
 _DOCKET = re.compile(r"\bFAA[- ]?(\d{4}-\d{3,5})\b", re.IGNORECASE)
@@ -100,21 +100,48 @@ class Entities:
 
 
 @lru_cache(maxsize=1)
-def _model_index() -> dict[str, tuple[str | None, str]]:
-    """Casefolded model/typecode/manufacturer string -> (typecode, manufacturer).
+def _model_index() -> dict[str, tuple[tuple[str, ...], str]]:
+    """Casefolded model/manufacturer string -> (typecodes, manufacturer).
 
-    Built once from the normalization table. A string absent from the table is
-    not a model as far as this engine is concerned.
+    Built once from two recorded sources, never from a guess: the normalization
+    table supplies the series names an AD uses ("737-800"), and the built fleet
+    supplies the variant designations an operator uses ("A320-214"), which the
+    table deliberately omits and points at Aircraft.model for. A string absent
+    from both is not a model as far as this engine is concerned.
+
+    The typecodes are a tuple because a designation can legitimately name more
+    than one ICAO type: "ERJ 170-200" is both E75L and E75S, the long- and
+    short-wing Embraer 175. The graph filter unions what it is handed, so
+    carrying both widens the candidate set, which is the honest reading -- an
+    AD on either wing is a candidate. Keeping whichever was iterated first
+    answered for half the type and said nothing about the other half.
+
+    The series table is consulted first, so it owns the manufacturer for any
+    string both sources name: it is the vocabulary the documents are in.
     """
-    index: dict[str, tuple[str | None, str]] = {}
+    index: dict[str, tuple[tuple[str, ...], str]] = {}
+
+    def add(key: str, typecode: str | None, manufacturer: str) -> None:
+        held = index.get(key)
+        if held is None:
+            index[key] = ((typecode,) if typecode else (), manufacturer)
+            return
+        codes, first_manufacturer = held
+        if typecode and typecode not in codes:
+            index[key] = ((*codes, typecode), first_manufacturer)
+
     data = table()
     for typecode, spec in data["types"].items():
-        index[typecode.casefold()] = (typecode, spec["manufacturer"])
+        add(_model_key(typecode), typecode, spec["manufacturer"])
+    for typecode, spec in data["types"].items():
         for model in spec["ad_models"]:
-            index.setdefault(model.casefold(), (typecode, spec["manufacturer"]))
+            add(_model_key(model), typecode, spec["manufacturer"])
+    for variant, (typecode, manufacturer) in variant_model_index().items():
+        if manufacturer:
+            add(variant, typecode, manufacturer)
     for canonical, spec in data["manufacturers"].items():
         for alias in [canonical, *spec["ad_forms"], *spec["opensky_aliases"]]:
-            index.setdefault(alias.casefold(), (None, canonical))
+            add(_model_key(alias), None, canonical)
     return index
 
 
@@ -187,16 +214,16 @@ def extract_entities(
 
     index = _model_index()
     lowered = query.casefold()
-    for alias, (typecode, manufacturer) in index.items():
+    for alias, (typecodes, manufacturer) in index.items():
         # Word-boundary containment, so "737" does not match inside "1737".
         if alias in lowered and re.search(
             rf"(?<![\w-]){re.escape(alias)}(?![\w-])", lowered
         ):
-            if typecode is None:
+            if not typecodes:
                 ents.manufacturers.append(manufacturer)
                 continue
             ents.models.append(alias)
-            ents.typecodes.append(typecode)
+            ents.typecodes.extend(typecodes)
             ents.manufacturers.append(manufacturer)
 
     known_models = {m.casefold() for m in ents.models}

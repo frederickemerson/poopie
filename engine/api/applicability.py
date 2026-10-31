@@ -6,8 +6,11 @@ engine.rules.engine.decide, which is pure code. What lives here is only the
 question "which aircraft and which revision is this query about?", which is a
 lookup, not a judgement.
 
-When the query names no aircraft there is nothing to decide against, and that
-is reported as such rather than guessed at.
+When the query names no aircraft there is usually nothing to decide against,
+and that is reported as such rather than guessed at. The one exception is a
+revision whose applicability is delegated to a document this corpus does not
+hold: that is a fact about the revision, so it is answerable with no aircraft
+at all, and engine.rules.engine.delegated_without_aircraft answers it.
 """
 
 from __future__ import annotations
@@ -18,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from engine.paths import BUILD
-from engine.rules.engine import Decision, decide
+from engine.rules.engine import Decision, decide, delegated_without_aircraft
 
 RULES_PATH = BUILD / "rules.jsonl"
 # Canonical name, written by `python3 -m engine.rules extract`. An earlier
@@ -147,7 +150,7 @@ def decide_for_query(
     if not store.has_rules:
         return ApplicabilityOutcome(
             None,
-            "No extracted rules are loaded. Run: python3 -m engine.rules.extract_cli",
+            "No extracted rules are loaded. Run: make extract",
         )
 
     revision_id = store.revision_from(entities=entities, result=result)
@@ -163,6 +166,15 @@ def decide_for_query(
 
     aircraft = store.aircraft_from(tail_number=tail_number, entities=entities, plan=plan)
     if aircraft is None:
+        # Asked before the aircraft check, not after, because a delegation is a
+        # property of the revision: it is true with no tail number and no tail
+        # number resolves it. Checked after, it is unreachable for exactly the
+        # questions that most need it -- "which ADs apply to my A330-941?" is
+        # the question whose honest answer is "a document we do not hold
+        # decides that".
+        delegated = delegated_without_aircraft(delegations, revision_id=revision_id)
+        if delegated is not None:
+            return ApplicabilityOutcome(delegated)
         return ApplicabilityOutcome(
             None,
             "No specific aircraft identified. Applicability needs a tail number or "

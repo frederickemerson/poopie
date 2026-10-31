@@ -19,6 +19,9 @@ Order of resolution, and why:
 
 2 outranks 3 outranks 4 because the refusal code tells the user *who* can fix
 it, and the blocker nobody-but-a-document can fix has to be named first.
+
+Step 2 is the only step that needs no aircraft, so it is also exposed on its
+own as delegated_without_aircraft, for queries that name no airplane.
 """
 
 from __future__ import annotations
@@ -122,6 +125,16 @@ def _describe(doc: dict[str, Any]) -> str:
     return f"{label} ({dated})" if dated else str(label)
 
 
+def _external_refusal(unheld: Sequence[dict[str, Any]], *, because: str) -> dict[str, Any]:
+    names = "; ".join(_describe(d) for d in unheld)
+    return _refusal(
+        REFUSAL_EXTERNAL,
+        f"Applicability is defined in {names}, which is not in this corpus. {because}",
+        RESOLVE_EXTERNAL,
+        [d.get("paragraph_id", "") for d in unheld],
+    )
+
+
 def decide(
     aircraft: dict[str, Any],
     rules: Sequence[dict[str, Any]],
@@ -153,18 +166,13 @@ def decide(
     passed = tuple(c.rule_id for c in conditions if c.outcome == PASS)
 
     if unheld:
-        names = "; ".join(_describe(d) for d in unheld)
-        paragraphs = [d.get("paragraph_id", "") for d in unheld]
         return Decision(
             decision=DECISION_UNDETERMINED,
             fired_rule_ids=passed,
             unknown_fields=unknown_fields,
-            refusal=_refusal(
-                REFUSAL_EXTERNAL,
-                f"Applicability is defined in {names}, which is not in this corpus. "
-                f"The rules held here are partial, so applicability cannot be decided.",
-                RESOLVE_EXTERNAL,
-                paragraphs,
+            refusal=_external_refusal(
+                unheld,
+                because="The rules held here are partial, so applicability cannot be decided.",
             ),
             **base,
         )
@@ -225,4 +233,45 @@ def decide(
         fired_rule_ids=passed,
         unknown_fields=(),
         **base,
+    )
+
+
+def delegated_without_aircraft(
+    external_applicability: Sequence[dict[str, Any]],
+    *,
+    revision_id: str | None = None,
+) -> Decision | None:
+    """The part of applicability that is decidable with no aircraft at all.
+
+    Whether a Revision defines its applicability by reference to a document
+    this corpus does not hold is a property of the Revision, not of any one
+    airplane. It is knowable before a tail number is, and no amount of
+    aircraft detail overcomes it -- so it is answerable for a query that names
+    no aircraft, where every other branch of `decide` is not.
+
+    Returns None when nothing is delegated, which is not a decision: with no
+    aircraft and no delegation there is genuinely nothing to decide, and
+    saying CANNOT_DETERMINE there would refuse a question we simply never
+    asked.
+
+    `aircraft` is empty on the returned Decision rather than a placeholder,
+    because there is no subject: inventing one would put an airplane in the
+    proof tree that the user never named. A caller that *has* an aircraft must
+    use `decide` instead, which can still reach DOES_NOT_APPLY on a held rule
+    and never need the external document at all -- step 1 above.
+    """
+    unheld = tuple(_unheld(external_applicability))
+    if not unheld:
+        return None
+    return Decision(
+        decision=DECISION_UNDETERMINED,
+        aircraft={},
+        revision_id=revision_id,
+        conditions=(),
+        external_documents=unheld,
+        refusal=_external_refusal(
+            unheld,
+            because="Applicability cannot be decided for any airplane without it.",
+        ),
+        notes=("decided from the revision alone: no aircraft was named",),
     )

@@ -1,8 +1,16 @@
 """Manufacturer / model normalization between OpenSky strings and AD text forms.
 
-Driven entirely by data/reference/aircraft_normalization.json. No fuzzy or
-heuristic matching: a string is either listed in the table or it is unmapped
-(None). Unmapped is an honest answer and is counted in coverage reports.
+Series-level normalization is driven entirely by
+data/reference/aircraft_normalization.json. No fuzzy or heuristic matching: a
+string is either listed in the table or it is unmapped (None). Unmapped is an
+honest answer and is counted in coverage reports.
+
+Variant-level strings are deliberately NOT in that table -- its own note says
+so: "ad_models are type-level series names (e.g. 737-800) as ICAO type
+designators cover several variants (737-823, 737-824...); variant-level
+matching uses Aircraft.model." variant_model_index() is that second half: it
+reads the variant designations off the built fleet, which is recorded data from
+the aircraft register, not a list anyone maintains by hand.
 """
 
 from __future__ import annotations
@@ -11,6 +19,8 @@ import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+
+from engine.paths import BUILD
 
 TABLE_PATH = Path(__file__).resolve().parents[2] / "data" / "reference" / "aircraft_normalization.json"
 
@@ -80,6 +90,58 @@ def manufacturer_matches_ad(aircraft_manufacturer: str | None, ad_make: str | No
     if a is None or b is None:
         return None
     return a == b
+
+
+@lru_cache(maxsize=1)
+def variant_model_index() -> dict[str, tuple[str, str | None]]:
+    """Variant designation -> (typecode, canonical manufacturer), from the fleet.
+
+    The register records both the variant a tail number actually is ("A320-214")
+    and its ICAO typecode ("A320"), so this mapping is read, never inferred. An
+    engineer asks about the aircraft they operate, which means the variant; the
+    AD names the series. Without this half, "my A330-941" resolved to no type at
+    all -- 423 of the 478 aircraft in the built fleet carry a variant string the
+    series table does not list, so the graph filter silently stopped narrowing
+    for 88% of the fleet.
+
+    Returns {} when the fleet has not been built. A variant whose typecode is
+    absent from the series table is skipped rather than invented, and a variant
+    that two typecodes disagree about is dropped from both: the register is
+    authoritative, but it is not guaranteed self-consistent, and a model string
+    that could mean two types must narrow to neither.
+    """
+    path = BUILD / "nodes.aircraft.jsonl"
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {}
+
+    known = set(table()["types"])
+    seen: dict[str, set[str]] = {}
+    manufacturers: dict[str, str | None] = {}
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            node = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if node.get("_type") != "Aircraft":
+            continue
+        model = str(node.get("model") or "").strip()
+        typecode = str(node.get("typecode") or "").strip()
+        if not model or typecode not in known:
+            continue
+        key = _model_key(model)
+        seen.setdefault(key, set()).add(typecode)
+        manufacturers.setdefault(key, table()["types"][typecode].get("manufacturer"))
+
+    return {
+        key: (next(iter(codes)), manufacturers.get(key))
+        for key, codes in seen.items()
+        if len(codes) == 1
+    }
 
 
 def manufacturer_conflicts_with_type(manufacturer: str | None, typecode: str | None) -> bool:
