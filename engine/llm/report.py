@@ -30,11 +30,14 @@ from engine.paths import BUILD  # noqa: E402
 LEDGER = BUILD / "cost_ledger.jsonl"
 
 #: Labels that make up bulk corpus extraction, as opposed to query-time calls.
-EXTRACTION_LABELS = {
-    "extract_rules",
-    "extract_rules_retry",
-    "extract_actions",
-}
+#: Any label starting with ``extract_`` counts, so a new extraction pass or
+#: retry cannot silently fall out of the total -- a hand-listed set is exactly
+#: the kind of thing that drifts, and this report exists to stop numbers
+#: drifting. ``_classify`` records anything it cannot place at all.
+EXTRACTION_PREFIX = "extract_"
+
+#: Query-time labels: one call per user question, not per corpus paragraph.
+QUERY_LABELS = {"query_plan", "answer"}
 
 
 def read_ledger(path: Path = LEDGER) -> list[dict[str, Any]]:
@@ -63,8 +66,14 @@ def summarise(rows: list[dict[str, Any]], *, paragraphs: int | None = None) -> d
         if row.get("cached_hit"):
             cached[label] += 1
 
-    extraction_usd = sum(usd[label] for label in EXTRACTION_LABELS)
-    extraction_calls = sum(calls[label] for label in EXTRACTION_LABELS)
+    extraction = [label for label in calls if label.startswith(EXTRACTION_PREFIX)]
+    extraction_usd = sum(usd[label] for label in extraction)
+    extraction_calls = sum(calls[label] for label in extraction)
+    unclassified = sorted(
+        label
+        for label in calls
+        if not label.startswith(EXTRACTION_PREFIX) and label not in QUERY_LABELS
+    )
     out: dict[str, Any] = {
         "ledger": str(LEDGER),
         "entries": len(rows),
@@ -78,9 +87,15 @@ def summarise(rows: list[dict[str, Any]], *, paragraphs: int | None = None) -> d
             for label in sorted(calls, key=lambda k: -usd[k])
         },
         "extraction": {
-            "labels": sorted(EXTRACTION_LABELS),
+            "labels": sorted(extraction),
             "calls": extraction_calls,
             "usd": round(extraction_usd, 6),
+        },
+        # Named so a figure quoted as "extraction" or "query time" can never
+        # quietly omit a label nobody classified.
+        "neither_extraction_nor_query": {
+            "labels": unclassified,
+            "usd": round(sum(usd[label] for label in unclassified), 6),
         },
     }
     if paragraphs:
@@ -132,6 +147,14 @@ def main(argv: list[str] | None = None) -> int:
             "  (an average over the corpus, not a per-call price: not every "
             "paragraph needs a rules pass)"
         )
+    other = report["neither_extraction_nor_query"]
+    if other["labels"]:
+        print()
+        print(
+            f"neither extraction nor query time: ${other['usd']:.6f} "
+            f"across {', '.join(other['labels'])}"
+        )
+        print("  (listed so no quoted subtotal silently omits them)")
     return 0
 
 
