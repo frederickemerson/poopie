@@ -314,8 +314,16 @@ export default function Page() {
     (state.refusal ? 1 : 0) +
     (state.listing ? 1 : 0);
 
+  // Three questions that were run against the engine and answered. These used
+  // to be the first three LIVE_DEMOS, which are the refusal demonstrations --
+  // so the first thing offered to someone with an empty box was a question
+  // built to refuse. A suggestion is a promise about what this thing can do.
   const suggestions = useMemo(
-    () => LIVE_DEMOS.slice(0, 3).map((d) => d.query),
+    () => [
+      "What is the unsafe condition addressed by AD 2009-17-05?",
+      "What are the latest ADs?",
+      "What is the unsafe condition addressed by AD 2005-01-04?",
+    ],
     [],
   );
 
