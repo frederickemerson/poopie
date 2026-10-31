@@ -11,6 +11,14 @@ interface ProofTreeProps {
   readonly resolve: (citationId: string) => ResolvedCitation | null;
   readonly onFocusCitation: (c: ResolvedCitation | null) => void;
   readonly subjectLabel: string | null;
+  /**
+   * Whether the question actually asked for an applicability decision, read
+   * from the query plan's own intent and aircraft fields. Someone who asked
+   * what an AD's unsafe condition is has not failed to supply a tail number;
+   * they asked a different question, and telling them the rules engine did not
+   * run reads as a shortfall in their question rather than a fact about ours.
+   */
+  readonly applicabilityAsked: boolean;
 }
 
 const RESOLVE_STEP_MS = 120;
@@ -21,7 +29,13 @@ const RESOLVE_STEP_MS = 120;
  * value. The question mark is an outcome, not a failure: it means the fleet
  * record does not carry the field the AD conditions on.
  */
-export function ProofTree({ decision, resolve, onFocusCitation, subjectLabel }: ProofTreeProps) {
+export function ProofTree({
+  decision,
+  resolve,
+  onFocusCitation,
+  subjectLabel,
+  applicabilityAsked,
+}: ProofTreeProps) {
   const { dur, stagger } = useMotionPrefs();
 
   if (!decision) {
@@ -29,6 +43,15 @@ export function ProofTree({ decision, resolve, onFocusCitation, subjectLabel }: 
   }
 
   if (isProofTreeUnavailable(decision.proof_tree)) {
+    if (!applicabilityAsked) {
+      return (
+        <p className="t-body px-3 py-3 text-ink-3">
+          This question did not ask whether a directive applies to an aircraft, so the
+          rules engine did not run. Name a tail number or a serial number to get a
+          verdict with its conditions.
+        </p>
+      );
+    }
     return <NoDecision reason={decision.proof_tree.unavailable} stageMs={decision.stage_ms} />;
   }
 

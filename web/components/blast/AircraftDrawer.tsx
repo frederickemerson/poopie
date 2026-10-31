@@ -107,6 +107,9 @@ export function AircraftDrawer({ aircraft, ad, entry, onClose }: AircraftDrawerP
           resolve={(id) => resolveCitation(id, paragraphs)}
           onFocusCitation={() => undefined}
           subjectLabel={aircraft.tail_number}
+          /* This drawer is opened from one aircraft row, so applicability is
+             exactly what was asked, whatever the query plan said. */
+          applicabilityAsked
         />
       </div>
     </motion.aside>

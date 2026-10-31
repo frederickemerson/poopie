@@ -55,6 +55,16 @@ export function EvidenceTabs({
 }: EvidenceTabsProps) {
   // No decision is a state of its own, so the badge says so rather than "0".
   const tree = state.decision?.proof_tree ?? null;
+  // The plan's own structured fields decide this, never the wording: an
+  // applicability question either carries that intent or names one aircraft.
+  // A null plan (no API key, budget capped) keeps today's behaviour.
+  const plan = state.plan;
+  const applicabilityAsked =
+    plan === null ||
+    plan.intent === "applicability" ||
+    plan.intent === "fleet_impact" ||
+    Boolean(plan.aircraft?.tail_number) ||
+    Boolean(plan.aircraft?.serial_number);
   const proofBadge =
     tree === null
       ? undefined
@@ -86,6 +96,7 @@ export function EvidenceTabs({
               resolve={resolve}
               onFocusCitation={onFocusCitation}
               subjectLabel={subjectLabel}
+              applicabilityAsked={applicabilityAsked}
             />
           ) : null}
           {activeTab === "revisions" ? (
