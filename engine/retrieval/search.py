@@ -38,7 +38,12 @@ if str(ROOT) not in sys.path:
 from engine.retrieval.corpus import Paragraph  # noqa: E402
 from engine.retrieval.entities import Entities  # noqa: E402
 from engine.retrieval.graph_filter import FilterResult, filter_candidates  # noqa: E402
-from engine.retrieval.index import HybridIndex, embed  # noqa: E402
+from engine.retrieval.index import HybridIndex, _indexed_text, embed  # noqa: E402
+from engine.retrieval.rerank import (  # noqa: E402
+    RERANK_WINDOW,
+    rerank_candidates,
+    select_top,
+)
 
 #: RRF constant from the original paper. Not a tuned parameter.
 RRF_K = 60
@@ -48,6 +53,10 @@ ARM_DEPTH = 40
 #: Maximum rowids to inline in an FTS5 `rowid IN (...)` intersection. Beyond
 #: this the statement gets long enough that filtering in Python is cheaper.
 _MAX_INLINE_ROWIDS = 900
+
+#: Whether `search` reranks when the caller does not say. Set from the measured
+#: comparison in docs/reranking.md, not from a belief that rerankers help.
+RERANK_DEFAULT = False
 
 _TOKEN = re.compile(r"[0-9a-z][0-9a-z\-/]*", re.IGNORECASE)
 #: Query-side stopwords only. The index keeps everything; dropping these from
@@ -76,6 +85,8 @@ class Hit:
     keyword_rank: int | None
     dense_rank: int | None
     dense_cosine: float | None
+    #: Cross-encoder logit, None when this hit was not reranked.
+    rerank_score: float | None = None
 
     @property
     def citation_id(self) -> str:
@@ -98,6 +109,9 @@ class Hit:
             "dense_cosine": (
                 None if self.dense_cosine is None else round(self.dense_cosine, 4)
             ),
+            "rerank_score": (
+                None if self.rerank_score is None else round(self.rerank_score, 4)
+            ),
         }
 
 
@@ -110,6 +124,10 @@ class SearchResult:
     #: Dense cosine of the best fused hit, 0.0 when the dense arm did not run.
     #: The absolute evidence signal; `top_score` is an ordering signal only.
     top_cosine: float = 0.0
+    #: "off" (not requested), "applied", or "fallback" (requested but the model
+    #: was unavailable, so hits are in RRF order). `rerank_reason` says why.
+    rerank_status: str = "off"
+    rerank_reason: str | None = None
 
     def paragraph_ids(self) -> set[str]:
         return {h.paragraph_id for h in self.hits}
@@ -205,8 +223,17 @@ def search(
     revision_scope: str = "current",
     revision_ids: list[str] | None = None,
     prefiltered: FilterResult | None = None,
+    rerank: bool | None = None,
 ) -> SearchResult:
-    """Graph filter, then both arms over the survivors, then RRF."""
+    """Graph filter, then both arms over the survivors, then RRF.
+
+    ``rerank`` adds a cross-encoder pass over the top ``RERANK_WINDOW`` fused
+    candidates (``None`` means ``RERANK_DEFAULT``). It only reorders paragraphs
+    the filter and fusion already chose; if the model is unavailable the RRF
+    order is kept and ``rerank_status`` is ``"fallback"`` with the reason.
+    """
+    if rerank is None:
+        rerank = RERANK_DEFAULT
     result = prefiltered or filter_candidates(
         index.corpus,
         entities,
@@ -238,7 +265,16 @@ def search(
         for row, rank in ranks.items():
             fused[row] = fused.get(row, 0.0) + 1.0 / (RRF_K + rank)
 
-    ordered = sorted(fused.items(), key=lambda kv: (-kv[1], kv[0]))[:k]
+    window = max(k, RERANK_WINDOW) if rerank else k
+    ordered = sorted(fused.items(), key=lambda kv: (-kv[1], kv[0]))[:window]
+    rerank_scores: dict[int, float] = {}
+    rerank_status, rerank_reason = "off", None
+    top_cosine_row = ordered[0][0] if ordered else None
+    if rerank and ordered:
+        ordered, rerank_scores, rerank_status, rerank_reason = _apply_rerank(
+            index, query, entities, ordered, k
+        )
+    ordered = ordered[:k]
     hits = [
         Hit(
             paragraph_id=(p := _paragraph(index, row)).paragraph_id,
@@ -254,6 +290,7 @@ def search(
             keyword_rank=keyword.get(row),
             dense_rank=dense.get(row),
             dense_cosine=cosines.get(row),
+            rerank_score=rerank_scores.get(row),
         )
         for row, score in ordered
     ]
@@ -262,5 +299,30 @@ def search(
         filter_report=result.as_report(),
         arms=arms,
         top_score=hits[0].score if hits else 0.0,
-        top_cosine=(hits[0].dense_cosine or 0.0) if hits else 0.0,
+        # The refusal layer's absolute signal stays anchored to the RRF winner,
+        # so enabling reranking cannot move the NO_EVIDENCE threshold's meaning.
+        top_cosine=cosines.get(top_cosine_row, 0.0) if hits else 0.0,
+        rerank_status=rerank_status,
+        rerank_reason=rerank_reason,
     )
+
+
+def _apply_rerank(
+    index: HybridIndex,
+    query: str,
+    entities: Entities,
+    ordered: list[tuple[int, float]],
+    k: int,
+) -> tuple[list[tuple[int, float]], dict[int, float], str, str | None]:
+    """Reorder the RRF window; on model failure return it untouched with a reason."""
+    paragraphs = [_paragraph(index, row) for row, _ in ordered]
+    outcome = rerank_candidates(query, [_indexed_text(p) for p in paragraphs])
+    if not outcome.applied:
+        return ordered, {}, "fallback", outcome.reason
+    named = set(entities.ad_numbers)
+    groups = [
+        [i for i, p in enumerate(paragraphs) if p.ad_number == ad] for ad in sorted(named)
+    ]
+    chosen = select_top(outcome.order, k, groups)
+    scores = {ordered[i][0]: s for i, s in enumerate(outcome.scores) if s is not None}
+    return [ordered[i] for i in chosen], scores, "applied", None
