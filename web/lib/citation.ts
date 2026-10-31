@@ -1,0 +1,78 @@
+/**
+ * Citation ids. One format, pinned by the contract:
+ *   {revision_id}#{label}@{char_start}-{char_end}
+ * char offsets index into the Revision's plain text, which is the same
+ * coordinate system as Paragraph.char_start / char_end, so a span is resolved
+ * inside a paragraph by subtracting the paragraph's own start.
+ */
+import { CITATION_ID_FORMAT } from "./contract";
+import type { ParagraphNode } from "./events";
+
+export interface CitationRef {
+  readonly revision_id: string;
+  readonly label: string;
+  readonly char_start: number;
+  readonly char_end: number;
+  /** '{revision_id}#{label}', i.e. the Paragraph key the span belongs to. */
+  readonly paragraph_id: string;
+}
+
+const PATTERN = /^(.+?)#(.+?)@(\d+)-(\d+)$/;
+
+export function formatCitationId(ref: Omit<CitationRef, "paragraph_id">): string {
+  return `${ref.revision_id}#${ref.label}@${ref.char_start}-${ref.char_end}`;
+}
+
+export function parseCitationId(id: string): CitationRef | null {
+  const m = PATTERN.exec(id);
+  if (!m) return null;
+  const [, revision_id, label, start, end] = m;
+  if (!revision_id || !label || start === undefined || end === undefined) return null;
+  const char_start = Number.parseInt(start, 10);
+  const char_end = Number.parseInt(end, 10);
+  if (char_end < char_start) return null;
+  return { revision_id, label, char_start, char_end, paragraph_id: `${revision_id}#${label}` };
+}
+
+export interface ResolvedCitation {
+  readonly id: string;
+  readonly ref: CitationRef;
+  readonly paragraph: ParagraphNode;
+  /** Offsets inside paragraph.text. */
+  readonly local_start: number;
+  readonly local_end: number;
+  readonly quote: string;
+}
+
+/**
+ * Resolve a citation against the retrieved paragraph set. Returns null when the
+ * paragraph was not retrieved or the span falls outside it: the contract forbids
+ * rendering either case as a citation.
+ */
+export function resolveCitation(
+  id: string,
+  paragraphs: readonly ParagraphNode[],
+): ResolvedCitation | null {
+  const ref = parseCitationId(id);
+  if (!ref) return null;
+  const paragraph = paragraphs.find((p) => p.paragraph_id === ref.paragraph_id);
+  if (!paragraph) return null;
+  const local_start = ref.char_start - paragraph.char_start;
+  const local_end = ref.char_end - paragraph.char_start;
+  if (local_start < 0 || local_end > paragraph.text.length || local_end <= local_start) return null;
+  return {
+    id,
+    ref,
+    paragraph,
+    local_start,
+    local_end,
+    quote: paragraph.text.slice(local_start, local_end),
+  };
+}
+
+/** Human form used on hover cards and in the source panel header. */
+export function citationLabel(ref: CitationRef): string {
+  return `${ref.revision_id} ¶${ref.label} @${ref.char_start}-${ref.char_end}`;
+}
+
+export const CITATION_FORMAT_HINT = CITATION_ID_FORMAT;

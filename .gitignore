@@ -10,3 +10,7 @@ data/build/*.jsonl
 data/build/*.db
 data/build/*.npy
 .env
+data/build/llm_cache/
+data/build/*.db
+data/build/*.npy
+web/tsconfig.tsbuildinfo

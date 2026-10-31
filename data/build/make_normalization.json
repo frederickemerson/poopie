@@ -1,0 +1,720 @@
+{
+ "note": "raw manufacturer strings; the contract has no make_raw field",
+ "aliases": {
+  "ATR – GIE Avions de Transport Régional": [
+   "ATR – GIE Avions de Transport Régional"
+  ],
+  "Agusta": [
+   "Agusta S.p.A."
+  ],
+  "Air Space Design and Manufacturing | Airbus Helicopters | Airbus Helicopters Deutschland | Bell Textron Canada | Bell Textron | Brantly International | Centerpointe Aerospace | Columbia Helicopters | Erickson Air-Crane Incorporated DBA Erickson Air-Crane | Hélicoptères Guimbal | Kaman Aerospace | Leonardo | MD Helicopters | PZL-Swidnik | Robinson Helicopter | Schweizer RSG | Scotts-Bell 47 | Siam Hiller Holdings | Sikorsky Aircraft | Enstrom Helicopter": [
+   "Air Space Design and Manufacturing LLC | Airbus Helicopters | Airbus Helicopters Deutschland GmbH | Bell Textron Canada Limited | Bell Textron Inc. | Brantly International Inc. | Centerpointe Aerospace Inc. | Columbia Helicopters Inc. | Erickson Air-Crane Incorporated DBA Erickson Air-Crane | Hélicoptères Guimbal | Kaman Aerospace Corporation | Leonardo S.p.a. | MD Helicopters Inc. | PZL-Swidnik S.A. | Robinson Helicopter Company | Schweizer RSG LLC | Scotts-Bell 47 Inc | Siam Hiller Holdings Inc. | Sikorsky Aircraft Corporation | The Enstrom Helicopter Corporation"
+  ],
+  "Airbus": [
+   "Airbus",
+   "Airbus SAS"
+  ],
+  "Airbus Canada": [
+   "Airbus Canada Limited Partnership"
+  ],
+  "Airbus Defence and Space": [
+   "Airbus Defence and Space GmbH"
+  ],
+  "Airbus Helicopters": [
+   "Airbus Helicopters"
+  ],
+  "Airbus Helicopters Deutschland": [
+   "Airbus Helicopters Deutschland GmbH",
+   "Airbus Helicopters Deutschland GmbH (AHD)"
+  ],
+  "Airbus Industrie": [
+   "Airbus Industrie"
+  ],
+  "Alexander Schleicher GmbH & Co. Segelflugzeugbau": [
+   "Alexander Schleicher GmbH & Co. Segelflugzeugbau"
+  ],
+  "AlliedSignal": [
+   "AlliedSignal"
+  ],
+  "AmSafe": [
+   "AmSafe Inc."
+  ],
+  "B-N Group": [
+   "B-N Group Ltd."
+  ],
+  "BAE Systems": [
+   "BAE Systems",
+   "BAE Systems (Operations) Limited"
+  ],
+  "Baykar Piaggio Aerospace": [
+   "Baykar Piaggio Aerospace S.p.A."
+  ],
+  "Bell Helicopter Textron": [
+   "Bell Helicopter Textron"
+  ],
+  "Bell Helicopter Textron Canada": [
+   "Bell Helicopter Textron Canada Limited"
+  ],
+  "Bell Textron Canada": [
+   "Bell Textron Canada Limited"
+  ],
+  "Bell Textron | International Helicopters | Overseas Aircraft Support | Red Tail Flying Services | Richards Heavylift Helo | Robinson Air Crane | Rotorcraft Development | San Joaquin Helicopters | Southwest Florida Aviation International | Tamarack Helicopters": [
+   "Bell Textron, Inc. | International Helicopters, Inc. | Overseas Aircraft Support, Inc. | Red Tail Flying Services LLC | Richards Heavylift Helo, Inc. | Robinson Air Crane, Inc. | Rotorcraft Development Corporation | San Joaquin Helicopters | Southwest Florida Aviation International | Tamarack Helicopters, Inc."
+  ],
+  "Billings Flying Service | Columbia Helicopters | Tandem Rotor | Unical Air": [
+   "Billings Flying Service Inc. | Columbia Helicopters Inc. | Tandem Rotor LLC | Unical Air Inc."
+  ],
+  "Boeing": [
+   "Boeing",
+   "The Boeing Company"
+  ],
+  "Bombardier": [
+   "Bombardier Inc.",
+   "Bombardier, Inc",
+   "Bombardier, Inc."
+  ],
+  "CFM International": [
+   "CFM International S.A.",
+   "CFM International, S.A."
+  ],
+  "Cessna": [
+   "Cessna"
+  ],
+  "Cessna Aircraft": [
+   "Cessna Aircraft Company"
+  ],
+  "DG Aviation": [
+   "DG Aviation GmbH"
+  ],
+  "Dassault Aviation": [
+   "Dassault Aviation"
+  ],
+  "De Havilland Aircraft of Canada": [
+   "De Havilland Aircraft of Canada Limited"
+  ],
+  "Diamond Aircraft Industries": [
+   "Diamond Aircraft Industries Inc"
+  ],
+  "Dowty Propellers": [
+   "Dowty Propellers"
+  ],
+  "Elixir Aircraft": [
+   "Elixir Aircraft"
+  ],
+  "Embraer": [
+   "Embraer",
+   "Embraer S.A."
+  ],
+  "Engine Alliance": [
+   "Engine Alliance"
+  ],
+  "Erickson Air-Crane": [
+   "Erickson Air-Crane Incorporated"
+  ],
+  "Eurocopter Canada": [
+   "Eurocopter Canada Limited"
+  ],
+  "Eurocopter Deutschland": [
+   "Eurocopter Deutschland GmbH"
+  ],
+  "Eurocopter France": [
+   "Eurocopter France"
+  ],
+  "Fokker Services": [
+   "Fokker Services B.V."
+  ],
+  "General Atomics AeroTec Systems": [
+   "General Atomics AeroTec Systems GmbH"
+  ],
+  "General Electric": [
+   "General Electric Company"
+  ],
+  "General Electric Company GE Aerospace": [
+   "General Electric Company GE Aerospace"
+  ],
+  "Grob-Werke": [
+   "Grob-Werke"
+  ],
+  "Gulfstream Aerospace": [
+   "Gulfstream Aerospace Corporation",
+   "Gulfstream Aerospace LP"
+  ],
+  "Hamilton Sundstrand": [
+   "Hamilton Sundstrand"
+  ],
+  "Honeywell International": [
+   "Honeywell International Inc."
+  ],
+  "Hélicoptères Guimbal": [
+   "Hélicoptères Guimbal"
+  ],
+  "International Aero Engines": [
+   "International Aero Engines LLC"
+  ],
+  "Lavia Argentina": [
+   "Lavia Argentina S.A. (Laviasa)"
+  ],
+  "Leonardo": [
+   "Leonardo S.p.A.",
+   "Leonardo S.p.a",
+   "Leonardo S.p.a."
+  ],
+  "Lockheed": [
+   "Lockheed"
+  ],
+  "Lycoming Engines": [
+   "Lycoming Engines"
+  ],
+  "MD Helicopters": [
+   "MD Helicopters LLC",
+   "MD Helicopters, Inc.",
+   "MD Helicopters, LLC"
+  ],
+  "McDonnell Douglas": [
+   "McDonnell Douglas"
+  ],
+  "Mitsubishi Heavy Industries": [
+   "Mitsubishi Heavy Industries",
+   "Mitsubishi Heavy Industries, Ltd."
+  ],
+  "Ontic Engineering and Manufacturing": [
+   "Ontic Engineering and Manufacturing Inc.",
+   "Ontic Engineering and Manufacturing, Inc. (Type Certificate Previously Held by Swearingen, Fairchild Aircraft, and M7 Aerospace)"
+  ],
+  "Pacific Aerospace": [
+   "Pacific Aerospace Corporation",
+   "Pacific Aerospace Limited"
+  ],
+  "Pilatus Aircraft": [
+   "Pilatus Aircraft Ltd."
+  ],
+  "Piper": [
+   "Piper"
+  ],
+  "Piper Aircraft": [
+   "Piper Aircraft Inc.",
+   "Piper Aircraft, Inc."
+  ],
+  "Pratt & Whitney": [
+   "Pratt & Whitney"
+  ],
+  "Pratt & Whitney Canada": [
+   "Pratt & Whitney Canada Corp."
+  ],
+  "Pratt & Whitney Division": [
+   "Pratt & Whitney Division"
+  ],
+  "Pratt & Whitney RTX": [
+   "Pratt & Whitney RTX Corporation (formerly United Technologies Corporation)"
+  ],
+  "Raytheon Aircraft": [
+   "Raytheon Aircraft Company"
+  ],
+  "Reims Aviation": [
+   "Reims Aviation S.A."
+  ],
+  "Robinson Helicopter": [
+   "Robinson Helicopter Company"
+  ],
+  "Rolls-Royce": [
+   "Rolls-Royce Corporation",
+   "Rolls-Royce plc"
+  ],
+  "Rolls-Royce Deutschland": [
+   "Rolls-Royce Deutschland",
+   "Rolls-Royce Deutschland Ltd & Co KG"
+  ],
+  "Sabreliner": [
+   "Sabreliner"
+  ],
+  "Safran Helicopter Engines": [
+   "Safran Helicopter Engines S.A."
+  ],
+  "Scotts-Bell 47": [
+   "Scotts-Bell 47 Inc."
+  ],
+  "Sikorsky Aircraft": [
+   "Sikorsky Aircraft Corporation"
+  ],
+  "Socata--Groupe Aerospatiale": [
+   "Socata--Groupe Aerospatiale"
+  ],
+  "Southwest Florida Aviation International": [
+   "Southwest Florida Aviation International"
+  ],
+  "Textron Aviation": [
+   "Textron Aviation Inc."
+  ],
+  "True Flight Holdings": [
+   "True Flight Holdings LLC"
+  ],
+  "Twin Commander Aircraft": [
+   "Twin Commander Aircraft LLC"
+  ],
+  "Vulcanair": [
+   "Vulcanair S.p.A."
+  ]
+ },
+ "by_node": {
+  "NPRM": {
+   "FAA-2026-11814@2026-10-19": "Airbus Helicopters",
+   "FAA-2026-11811@2026-10-19": "Pratt & Whitney RTX Corporation (formerly United Technologies Corporation)",
+   "FAA-2026-11813@2026-10-19": "Airbus SAS",
+   "FAA-2026-11812@2026-10-15": "Airbus Helicopters Deutschland GmbH (AHD)",
+   "FAA-2026-11808@2026-10-14": "Leonardo S.p.a.",
+   "FAA-2026-11809@2026-10-14": "Baykar Piaggio Aerospace S.p.A.",
+   "FAA-2026-11810@2026-10-15": "Airbus SAS",
+   "FAA-2026-11806@2026-10-13": "Airbus Helicopters",
+   "FAA-2026-11807@2026-10-14": "Leonardo S.p.A.",
+   "FAA-2026-11803@2026-10-08": "Airbus SAS",
+   "FAA-2026-1338@2026-10-07": "Airbus SAS",
+   "FAA-2026-11799@2026-10-08": "Air Space Design and Manufacturing LLC | Airbus Helicopters | Airbus Helicopters Deutschland GmbH | Bell Textron Canada Limited | Bell Textron Inc. | Brantly International Inc. | Centerpointe Aerospace Inc. | Columbia Helicopters Inc. | Erickson Air-Crane Incorporated DBA Erickson Air-Crane | Hélicoptères Guimbal | Kaman Aerospace Corporation | Leonardo S.p.a. | MD Helicopters Inc. | PZL-Swidnik S.A. | Robinson Helicopter Company | Schweizer RSG LLC | Scotts-Bell 47 Inc | Siam Hiller Holdings Inc. | Sikorsky Aircraft Corporation | The Enstrom Helicopter Corporation",
+   "FAA-2025-0204@2026-10-14": "The Boeing Company",
+   "FAA-2026-11802@2026-10-08": "Airbus SAS",
+   "FAA-2026-11800@2026-10-05": "Airbus Helicopters",
+   "FAA-2026-11798@2026-10-05": "DG Aviation GmbH",
+   "FAA-2026-11796@2026-10-01": "Embraer S.A.",
+   "FAA-2026-11794@2026-09-30": "Vulcanair S.p.A.",
+   "FAA-2026-11791@2026-09-30": "Bell Textron Canada Limited",
+   "FAA-2026-11795@2026-09-30": "Airbus Helicopters",
+   "FAA-2026-11793@2026-09-30": "Airbus SAS",
+   "FAA-2026-11792@2026-09-30": "Airbus Helicopters Deutschland GmbH (AHD)",
+   "FAA-2026-11790@2026-09-29": "Airbus Helicopters Deutschland GmbH (AHD)",
+   "FAA-2026-11788@2026-09-29": "Leonardo S.p.A.",
+   "FAA-2026-11787@2026-09-28": "Airbus Helicopters",
+   "FAA-2025-2277@2026-09-24": "Bombardier Inc.",
+   "FAA-2026-8818@2026-09-23": "Textron Aviation Inc.",
+   "FAA-2026-8809@2026-09-22": "Airbus SAS",
+   "FAA-2026-11783@2026-09-22": "Bell Textron Canada Limited",
+   "FAA-2026-8817@2026-09-22": "Leonardo S.p.a.",
+   "FAA-2026-8807@2026-09-22": "Airbus SAS",
+   "FAA-2026-8816@2026-09-17": "Pratt & Whitney",
+   "FAA-2026-8811@2026-09-21": "The Boeing Company",
+   "FAA-2026-8812@2026-09-17": "Airbus SAS",
+   "FAA-2026-8813@2026-09-17": "ATR – GIE Avions de Transport Régional",
+   "FAA-2026-8810@2026-09-16": "De Havilland Aircraft of Canada Limited",
+   "FAA-2026-8804@2026-09-14": "Airbus SAS",
+   "FAA-2026-8802@2026-09-15": "Airbus Defence and Space GmbH",
+   "FAA-2026-8803@2026-09-14": "CFM International S.A.",
+   "FAA-2026-8805@2026-09-14": "Dassault Aviation",
+   "FAA-2026-8808@2026-09-14": "Bombardier Inc.",
+   "FAA-2026-8806@2026-09-11": "Airbus SAS",
+   "FAA-2026-8801@2026-09-10": "Dassault Aviation",
+   "FAA-2026-8796@2026-09-10": "Bell Textron Canada Limited",
+   "FAA-2026-8798@2026-09-10": "Bell Textron Canada Limited",
+   "FAA-2026-8799@2026-09-09": "Airbus SAS",
+   "FAA-2026-8800@2026-09-09": "Airbus SAS",
+   "FAA-2026-8797@2026-09-09": "Bombardier Inc.",
+   "FAA-2026-8795@2026-09-03": "Airbus SAS",
+   "FAA-2026-8794@2026-09-02": "Airbus Canada Limited Partnership",
+   "FAA-2026-8790@2026-09-01": "Airbus Helicopters",
+   "FAA-2026-8791@2026-08-28": "Embraer S.A.",
+   "FAA-2026-8786@2026-08-24": "Airbus Helicopters",
+   "FAA-2026-8783@2026-08-20": "Rolls-Royce Deutschland Ltd & Co KG",
+   "FAA-2026-8784@2026-08-20": "The Boeing Company",
+   "FAA-2026-8785@2026-08-20": "Dassault Aviation",
+   "FAA-2026-8782@2026-08-19": "Airbus SAS",
+   "FAA-2026-8781@2026-08-17": "Rolls-Royce Deutschland Ltd & Co KG",
+   "FAA-2026-8779@2026-08-13": "Airbus SAS",
+   "FAA-2026-7237@2026-08-18": "The Boeing Company",
+   "FAA-2026-8780@2026-08-13": "Airbus SAS",
+   "FAA-2026-7240@2026-08-13": "Rolls-Royce Deutschland Ltd & Co KG",
+   "FAA-2026-7239@2026-08-14": "Airbus Helicopters",
+   "FAA-2026-7234@2026-08-12": "The Boeing Company",
+   "FAA-2026-7233@2026-08-07": "The Boeing Company",
+   "FAA-2026-7230@2026-07-30": "Airbus Helicopters Deutschland GmbH (AHD)",
+   "FAA-2026-7232@2026-07-31": "CFM International S.A.",
+   "FAA-2026-7231@2026-07-29": "Airbus Helicopters",
+   "FAA-2026-7229@2026-07-27": "Airbus Canada Limited Partnership",
+   "FAA-2026-7228@2026-07-27": "The Boeing Company",
+   "FAA-2026-7227@2026-07-23": "Bell Textron Canada Limited",
+   "FAA-2026-7226@2026-07-23": "Airbus Helicopters",
+   "FAA-2026-7225@2026-07-23": "Rolls-Royce Deutschland Ltd & Co KG",
+   "FAA-2026-7219@2026-07-15": "Rolls-Royce Deutschland Ltd & Co KG",
+   "FAA-2026-7221@2026-07-16": "Bombardier Inc.",
+   "FAA-2026-7220@2026-07-15": "Bell Textron Canada Limited",
+   "FAA-2026-7212@2026-07-14": "Leonardo S.p.a.",
+   "FAA-2026-7215@2026-07-09": "The Boeing Company",
+   "FAA-2026-7213@2026-07-10": "Safran Helicopter Engines S.A.",
+   "FAA-2025-5394@2026-07-08": "Billings Flying Service Inc. | Columbia Helicopters Inc. | Tandem Rotor LLC | Unical Air Inc.",
+   "FAA-2026-7209@2026-07-06": "Rolls-Royce Deutschland Ltd & Co KG",
+   "FAA-2026-4664@2026-07-02": "Airbus Helicopters",
+   "FAA-2026-4666@2026-07-01": "MD Helicopters LLC",
+   "FAA-2026-4668@2026-06-30": "The Boeing Company",
+   "FAA-2026-4669@2026-06-29": "Airbus Canada Limited Partnership",
+   "FAA-2026-4656@2026-06-29": "Airbus Helicopters Deutschland GmbH (AHD)",
+   "FAA-2026-4657@2026-06-18": "Airbus Helicopters",
+   "FAA-2026-4653@2026-06-08": "The Boeing Company",
+   "FAA-2026-4649@2026-06-04": "Airbus SAS",
+   "FAA-2026-4651@2026-06-03": "General Electric Company GE Aerospace",
+   "FAA-2026-4648@2026-06-01": "Rolls-Royce Deutschland Ltd & Co KG",
+   "FAA-2025-2541@2026-05-29": "Rolls-Royce Deutschland Ltd & Co KG",
+   "FAA-2026-4643@2026-05-26": "Pratt & Whitney Division",
+   "FAA-2026-4642@2026-05-26": "Bombardier Inc.",
+   "FAA-2026-4634@2026-05-12": "Airbus Canada Limited Partnership",
+   "FAA-2026-4633@2026-05-13": "Diamond Aircraft Industries Inc",
+   "FAA-2026-4631@2026-05-07": "Airbus SAS",
+   "FAA-2026-4630@2026-05-07": "Hélicoptères Guimbal",
+   "FAA-2026-3876@2026-04-30": "The Boeing Company",
+   "FAA-2026-3870@2026-04-29": "Textron Aviation Inc.",
+   "FAA-2026-3875@2026-05-01": "General Electric Company GE Aerospace",
+   "FAA-2026-3868@2026-04-27": "The Boeing Company",
+   "FAA-2026-3865@2026-04-23": "The Boeing Company",
+   "FAA-2026-3863@2026-04-23": "Sikorsky Aircraft Corporation",
+   "FAA-2026-3487@2026-04-15": "Airbus Helicopters",
+   "FAA-2026-3483@2026-04-14": "Billings Flying Service Inc. | Columbia Helicopters Inc. | Tandem Rotor LLC | Unical Air Inc.",
+   "FAA-2026-3474@2026-04-06": "Pilatus Aircraft Ltd.",
+   "FAA-2026-3469@2026-04-02": "The Boeing Company",
+   "FAA-2026-3471@2026-04-07": "The Boeing Company",
+   "FAA-2026-2730@2026-04-02": "The Boeing Company",
+   "FAA-2026-2729@2026-03-30": "Airbus SAS",
+   "FAA-2026-2723@2026-04-02": "Ontic Engineering and Manufacturing Inc.",
+   "FAA-2026-2726@2026-03-30": "The Boeing Company",
+   "FAA-2026-2725@2026-03-26": "The Boeing Company",
+   "FAA-2026-2721@2026-03-24": "Airbus Canada Limited Partnership",
+   "FAA-2026-2716@2026-03-23": "The Boeing Company",
+   "FAA-2026-2713@2026-03-17": "Airbus SAS",
+   "FAA-2026-2712@2026-03-18": "The Boeing Company",
+   "FAA-2026-2289@2026-03-04": "Bombardier Inc.",
+   "FAA-2026-1339@2026-02-25": "The Boeing Company",
+   "FAA-2026-1338@2026-02-25": "Airbus SAS",
+   "FAA-2026-1335@2026-02-24": "The Boeing Company",
+   "FAA-2026-1331@2026-02-20": "Airbus SAS",
+   "FAA-2026-1322@2026-02-24": "The Boeing Company",
+   "FAA-2026-1330@2026-02-20": "The Boeing Company",
+   "FAA-2026-1328@2026-02-17": "Airbus SAS",
+   "FAA-2026-1326@2026-02-13": "Airbus Helicopters Deutschland GmbH (AHD)",
+   "FAA-2026-0745@2026-02-11": "The Boeing Company",
+   "FAA-2026-0741@2026-02-06": "The Boeing Company",
+   "FAA-2026-0735@2026-01-30": "Airbus SAS",
+   "FAA-2025-5403@2026-01-16": "The Boeing Company",
+   "FAA-2026-0010@2026-01-12": "The Boeing Company",
+   "FAA-2025-5401@2026-01-05": "General Atomics AeroTec Systems GmbH",
+   "FAA-2025-5394@2025-12-22": "Billings Flying Service Inc. | Columbia Helicopters Inc. | Tandem Rotor LLC | Unical Air Inc.",
+   "FAA-2025-5042@2025-12-05": "Airbus SAS",
+   "FAA-2025-3438@2025-11-18": "Twin Commander Aircraft LLC",
+   "FAA-2025-3998@2025-11-18": "General Electric Company GE Aerospace",
+   "FAA-2025-3997@2025-11-17": "The Boeing Company",
+   "FAA-2025-3991@2025-11-18": "Airbus Helicopters",
+   "FAA-2025-3990@2025-11-18": "Lavia Argentina S.A. (Laviasa)",
+   "FAA-2025-3429@2025-11-18": "The Boeing Company",
+   "FAA-2025-0199@2025-09-25": "Airbus Canada Limited Partnership",
+   "FAA-2025-2548@2025-09-29": "The Boeing Company",
+   "FAA-2025-2277@2025-09-09": "Bombardier Inc.",
+   "FAA-2025-1367@2025-07-24": "The Boeing Company",
+   "FAA-2025-1718@2025-07-22": "The Boeing Company",
+   "FAA-2025-0341@2025-06-25": "Safran Helicopter Engines S.A.",
+   "FAA-2025-1105@2025-06-16": "The Boeing Company",
+   "FAA-2025-0919@2025-05-30": "The Boeing Company",
+   "FAA-2025-0747@2025-05-06": "Bombardier Inc.",
+   "FAA-2025-0469@2025-04-15": "The Boeing Company",
+   "FAA-2025-0349@2025-04-11": "The Boeing Company",
+   "FAA-2024-1884@2025-02-04": "The Boeing Company",
+   "FAA-2025-0003@2025-01-17": "The Boeing Company",
+   "FAA-2025-0004@2025-01-17": "The Boeing Company",
+   "FAA-2024-2716@2024-12-31": "The Boeing Company",
+   "FAA-2024-2142@2024-11-07": "Piper Aircraft Inc.",
+   "FAA-2024-1475@2024-09-26": "Airbus SAS",
+   "FAA-2024-2142@2024-09-23": "Piper Aircraft Inc.",
+   "FAA-2024-2143@2024-09-19": "Piper Aircraft Inc.",
+   "FAA-2022-0876@2024-03-22": "The Boeing Company",
+   "FAA-2023-2237@2023-12-28": "International Aero Engines LLC",
+   "FAA-2023-1211@2023-11-28": "Rolls-Royce Deutschland Ltd & Co KG",
+   "FAA-2022-1401@2023-06-14": "General Electric Company",
+   "95-CE-35-AD@2022-10-31": "Piper Aircraft Inc.",
+   "FAA-2022-1308@2022-11-10": "Airbus Canada Limited Partnership",
+   "FAA-2022-1303@2022-11-10": "Alexander Schleicher GmbH & Co. Segelflugzeugbau",
+   "FAA-2022-1296@2022-11-14": "Airbus SAS",
+   "FAA-2022-0992@2022-08-15": "Bell Textron Canada Limited",
+   "FAA-2021-1017@2022-04-14": "True Flight Holdings LLC",
+   "FAA-2022-0460@2022-04-14": "Bell Textron, Inc. | International Helicopters, Inc. | Overseas Aircraft Support, Inc. | Red Tail Flying Services LLC | Richards Heavylift Helo, Inc. | Robinson Air Crane, Inc. | Rotorcraft Development Corporation | San Joaquin Helicopters | Southwest Florida Aviation International | Tamarack Helicopters, Inc.",
+   "FAA-2022-0222@2022-02-03": "Piper Aircraft, Inc.",
+   "FAA-2021-1078@2022-01-10": "Bell Textron Canada Limited",
+   "FAA-2018-0440@2021-10-29": "Scotts-Bell 47 Inc.",
+   "FAA-2010-0427@2021-09-29": "Southwest Florida Aviation International",
+   "FAA-2021-0255@2021-09-08": "The Boeing Company",
+   "FAA-2021-0298@2021-08-24": "Airbus Canada Limited Partnership",
+   "FAA-2018-0689@2021-07-27": "Gulfstream Aerospace Corporation",
+   "FAA-2020-0713@2021-07-22": "Gulfstream Aerospace Corporation",
+   "FAA-2018-0422@2021-06-27": "Pacific Aerospace Limited",
+   "FAA-2020-0089@2021-06-23": "The Boeing Company",
+   "FAA-2020-0994@2021-06-07": "Gulfstream Aerospace Corporation",
+   "FAA-2021-0298@2021-04-15": "Airbus Canada Limited Partnership",
+   "FAA-2020-0985@2021-04-01": "Airbus Helicopters Deutschland GmbH",
+   "FAA-2021-0255@2021-04-06": "The Boeing Company",
+   "FAA-2007-0373@2021-03-14": "Erickson Air-Crane Incorporated",
+   "FAA-2011-0449@2021-03-08": "Bell Helicopter Textron Canada Limited",
+   "FAA-2007-27495@2021-03-07": "Eurocopter France",
+   "FAA-2021-0103@2021-02-25": "Pratt & Whitney Canada Corp.",
+   "FAA-2005-21679@2021-02-24": "Robinson Helicopter Company",
+   "FAA-2020-0994@2021-02-22": "Gulfstream Aerospace Corporation",
+   "FAA-2010-0720@2021-03-14": "Sikorsky Aircraft Corporation",
+   "FAA-2013-0751@2021-02-24": "Agusta S.p.A.",
+   "90-CE-35-AD@2021-02-21": "Textron Aviation Inc.",
+   "FAA-2011-0099@2021-02-21": "Sikorsky Aircraft Corporation",
+   "FAA-2020-0985@2020-11-08": "Airbus Helicopters Deutschland GmbH",
+   "FAA-2019-0576@2020-10-19": "The Boeing Company",
+   "FAA-2020-0713@2020-07-27": "Gulfstream Aerospace Corporation",
+   "FAA-2017-0492@2020-06-02": "Honeywell International Inc.",
+   "FAA-2018-0548@2020-05-03": "De Havilland Aircraft of Canada Limited",
+   "FAA-2020-0089@2020-02-03": "The Boeing Company",
+   "FAA-2018-0547@2019-08-27": "Bombardier Inc.",
+   "FAA-2019-0576@2019-08-07": "The Boeing Company",
+   "FAA-2019-0021@2019-07-29": "AmSafe Inc.",
+   "FAA-2019-0518@2020-03-29": "The Boeing Company",
+   "FAA-2017-0812@2019-05-12": "Airbus SAS",
+   "FAA-2016-9139@2019-02-27": "Mitsubishi Heavy Industries, Ltd.",
+   "FAA-2019-0021@2019-02-21": "AmSafe Inc.",
+   "FAA-2017-0313@2018-09-25": "CFM International, S.A.",
+   "FAA-2018-0689@2018-07-26": "Gulfstream Aerospace Corporation",
+   "FAA-2018-0548@2018-06-21": "Bombardier Inc.",
+   "FAA-2018-0547@2018-07-05": "Bombardier Inc.",
+   "FAA-2018-0422@2018-06-17": "Pacific Aerospace Limited",
+   "FAA-2017-0812@2017-09-18": "Airbus",
+   "FAA-2017-0313@2017-08-24": "CFM International, S.A.",
+   "FAA-2016-6417@2017-08-10": "The Boeing Company",
+   "FAA-2017-0492@2017-06-05": "Honeywell International Inc.",
+   "FAA-2015-3657@2016-11-24": "Airbus Helicopters",
+   "FAA-2019-9184@2016-10-03": "The Boeing Company",
+   "FAA-2016-9139@2016-09-15": "Mitsubishi Heavy Industries, Ltd.",
+   "FAA-2016-6417@2016-05-09": "The Boeing Company",
+   "FAA-2011-0254@2016-02-24": "The Boeing Company",
+   "FAA-2015-1014@2015-11-29": "Rolls-Royce Deutschland Ltd & Co KG",
+   "FAA-2015-3657@2015-09-01": "Airbus Helicopters",
+   "FAA-2013-0627@2015-08-27": "BAE Systems (Operations) Limited",
+   "FAA-2015-2994@2015-07-23": "Airbus Helicopters Deutschland GmbH",
+   "FAA-2015-0909@2015-06-18": "AlliedSignal",
+   "FAA-2015-1014@2015-06-07": "Rolls-Royce Deutschland Ltd & Co KG",
+   "FAA-2015-0868@2015-04-26": "Lycoming Engines",
+   "FAA-2015-0827@2015-04-14": "Bombardier Inc.",
+   "FAA-2012-1319@2015-01-05": "The Boeing Company",
+   "FAA-2014-0923@2014-12-14": "The Boeing Company",
+   "FAA-2013-0742@2014-06-26": "Piper Aircraft, Inc.",
+   "FAA-2013-0541@2014-05-27": "The Boeing Company",
+   "FAA-2013-0629@2014-03-04": "Fokker Services B.V.",
+   "FAA-2014-0012@2014-02-05": "Airbus",
+   "FAA-2005-21236@2013-10-22": "The Boeing Company",
+   "FAA-2013-0972@2013-11-19": "Airbus",
+   "FAA-2012-0859@2013-09-11": "The Boeing Company",
+   "FAA-2013-0751@2013-09-04": "Agusta S.p.A.",
+   "FAA-2013-0742@2013-08-19": "Piper Aircraft, Inc.",
+   "FAA-2013-0315@2013-09-05": "Grob-Werke",
+   "FAA-2013-0629@2013-07-30": "Fokker Services B.V.",
+   "FAA-2013-0627@2013-07-23": "BAE Systems (Operations) Limited",
+   "FAA-2013-0541@2013-07-01": "The Boeing Company",
+   "FAA-2012-0805@2013-06-20": "The Boeing Company",
+   "FAA-2012-0756@2013-05-06": "Piper Aircraft, Inc.",
+   "FAA-2013-0315@2013-04-08": "Grob-Werke",
+   "FAA-2011-0153@2013-04-21": "The Boeing Company",
+   "FAA-2011-0034@2013-04-21": "The Boeing Company",
+   "FAA-2011-0033@2013-04-21": "The Boeing Company",
+   "FAA-2010-0678@2013-04-22": "The Boeing Company",
+   "FAA-2013-0056@2013-02-06": "Hamilton Sundstrand",
+   "FAA-2012-1319@2013-01-29": "The Boeing Company",
+   "FAA-2012-0962@2013-01-17": "Cessna Aircraft Company",
+   "FAA-2013-0021@2013-01-31": "Eurocopter Deutschland GmbH",
+   "FAA-2012-18033@2013-01-07": "Cessna Aircraft Company",
+   "FAA-2012-0495@2012-10-22": "Gulfstream Aerospace LP",
+   "FAA-2012-0962@2012-09-10": "Cessna Aircraft Company",
+   "FAA-2012-0859@2012-08-26": "The Boeing Company",
+   "FAA-2012-0805@2012-08-07": "The Boeing Company",
+   "FAA-2011-0158@2012-08-07": "The Boeing Company",
+   "FAA-2012-0756@2012-07-18": "Piper Aircraft, Inc.",
+   "FAA-2011-0222@2012-06-19": "Dassault Aviation",
+   "FAA-2012-0495@2012-05-30": "Gulfstream Aerospace LP",
+   "FAA-2012-1324@2011-12-21": "Airbus",
+   "FAA-2009-0555@2011-07-27": "Honeywell International Inc.",
+   "FAA-2011-0596@2011-08-22": "Eurocopter Canada Limited",
+   "FAA-2007-27715@2011-05-17": "Airbus",
+   "FAA-2011-0033@2011-05-10": "Dowty Propellers",
+   "FAA-2011-0254@2011-03-21": "The Boeing Company",
+   "FAA-2011-0222@2011-03-14": "Dassault Aviation",
+   "FAA-2011-0158@2011-03-13": "The Boeing Company",
+   "FAA-2011-0153@2011-03-07": "The Boeing Company",
+   "FAA-2011-0449@2011-05-12": "Bell Helicopter Textron Canada Limited",
+   "FAA-2011-0099@2011-02-28": "Sikorsky Aircraft Corporation",
+   "FAA-2011-0033@2011-01-31": "The Boeing Company",
+   "FAA-2011-0034@2011-01-31": "The Boeing Company",
+   "90-NM-267-AD@2011-01-05": "Gulfstream Aerospace Corporation",
+   "FAA-2010-0720@2010-07-20": "Sikorsky Aircraft Corporation",
+   "FAA-2010-0678@2010-07-06": "The Boeing Company",
+   "95-NM-215-AD@2010-05-10": "The Boeing Company",
+   "FAA-2010-0427@2010-04-21": "Southwest Florida Aviation International",
+   "FAA-2009-1028@2009-11-04": "Gulfstream Aerospace LP",
+   "FAA-2009-0559@2016-03-13": "Sikorsky Aircraft Corporation",
+   "2002-NM-12-AD@2009-01-11": "Boeing",
+   "FAA-2007-0242@2008-10-13": "General Electric Company",
+   "FAA-2002-13744@2008-08-06": "Robinson Helicopter Company",
+   "FAA-2007-27715@2008-06-25": "Airbus",
+   "2001-NM-237-AD@2008-06-16": "Boeing",
+   "FAA-2007-0242@2008-02-24": "General Electric Company",
+   "2000-NM-120-AD@2008-01-30": "Embraer",
+   "2002-NM-260-AD@2007-12-20": "BAE Systems",
+   "FAA-2007-0373@2007-12-30": "Erickson Air-Crane Incorporated",
+   "2001-NM-40-AD@2007-11-14": "Boeing",
+   "FAA-2004-18583@2007-09-18": "Boeing",
+   "FAA-2007-27715@2007-08-15": "Airbus",
+   "FAA-2007-27269@2007-07-23": "Embraer",
+   "2003-NM-67-AD@2007-06-19": "Embraer",
+   "FAA-2007-27715@2007-03-27": "Airbus",
+   "FAA-2007-27495@2007-03-12": "Eurocopter France",
+   "FAA-2006-26691@2007-02-22": "Reims Aviation S.A.",
+   "FAA-2007-27269@2007-02-21": "Embraer",
+   "FAA-2006-26219@2006-11-01": "Bell Helicopter Textron",
+   "FAA-2005-22806@2006-10-16": "Bell Helicopter Textron",
+   "FAA-2006-25688@2006-09-14": "B-N Group Ltd.",
+   "98-NM-200-AD@2006-09-10": "Lockheed",
+   "FAA-2006-22518@2006-08-07": "Boeing",
+   "FAA-2006-24788@2006-08-07": "Embraer",
+   "FAA-2005-23007@2006-07-23": "Airbus",
+   "FAA-2006-25221@2006-06-29": "Airbus",
+   "FAA-2006-23739@2006-06-27": "Embraer",
+   "2004-SW-16-AD@2006-06-21": "MD Helicopters, Inc.",
+   "FAA-2005-19676@2006-05-25": "Embraer",
+   "2002-NM-12-AD@2006-05-25": "Boeing",
+   "FAA-2006-24788@2006-05-16": "Embraer",
+   "FAA-2006-23673@2006-05-08": "Embraer",
+   "FAA-2005-23249@2006-04-10": "Gulfstream Aerospace LP",
+   "FAA-2004-19157@2006-04-04": "Rolls-Royce Deutschland",
+   "FAA-2006-24018@2006-03-26": "Pacific Aerospace Corporation",
+   "FAA-2004-19930@2006-03-16": "Rolls-Royce plc",
+   "FAA-2006-23739@2006-02-01": "Embraer",
+   "FAA-2005-20691@2006-02-01": "Boeing",
+   "FAA-2006-23673@2006-01-24": "Embraer",
+   "FAA-2005-21880@2005-12-11": "Boeing",
+   "FAA-2005-23249@2005-12-08": "Gulfstream Aerospace Corporation",
+   "FAA-2005-23007@2005-11-20": "Airbus",
+   "FAA-2005-22806@2005-10-27": "Bell Helicopter Textron",
+   "97-NM-78-AD@2005-10-05": "Boeing",
+   "FAA-2005-20403@2005-09-13": "Bombardier, Inc.",
+   "FAA-2005-20402@2005-09-13": "Sabreliner",
+   "2003-NE-31-AD@2005-08-15": "Rolls-Royce plc",
+   "FAA-2005-21880@2005-07-20": "Boeing",
+   "FAA-2005-21679@2005-06-27": "Robinson Helicopter Company",
+   "2001-NM-152-AD@2005-06-06": "McDonnell Douglas",
+   "FAA-2005-20349@2005-06-02": "McDonnell Douglas",
+   "FAA-2004-19565@2005-05-31": "Gulfstream Aerospace LP",
+   "FAA-2005-20501@2005-05-31": "Embraer",
+   "FAA-2005-21236@2005-05-17": "Boeing",
+   "2002-NM-352-AD@2005-04-17": "Embraer",
+   "FAA-2004-19563@2005-04-06": "Bombardier, Inc.",
+   "FAA-2004-19473@2005-03-22": "Grob-Werke",
+   "2002-NM-306-AD@2005-03-22": "McDonnell Douglas",
+   "FAA-2005-20691@2005-03-22": "Boeing",
+   "FAA-2004-19564@2005-03-14": "Gulfstream Aerospace LP",
+   "FAA-2005-20501@2005-03-07": "Embraer",
+   "FAA-2005-20349@2005-02-14": "McDonnell Douglas",
+   "2004-SW-16-AD@2005-02-09": "MD Helicopters, Inc.",
+   "2000-NM-120-AD@2005-01-31": "Embraer",
+   "2000-NM-168-AD@2005-01-11": "McDonnell Douglas",
+   "FAA-2004-19930@2004-12-26": "Rolls-Royce plc",
+   "FAA-2004-19682@2004-11-23": "Boeing",
+   "FAA-2004-19563@2004-11-08": "Bombardier, Inc.",
+   "FAA-2004-19564@2004-11-09": "Gulfstream Aerospace LP",
+   "FAA-2004-19565@2004-11-09": "Gulfstream Aerospace LP",
+   "2003-NM-04-AD@2004-11-02": "Embraer",
+   "FAA-2004-19089@2004-10-13": "Raytheon Aircraft Company",
+   "90-CE-55-AD@2004-10-11": "Piper",
+   "FAA-2004-19119@2004-10-06": "Raytheon Aircraft Company",
+   "FAA-2004-19157@2004-10-03": "Rolls-Royce Deutschland",
+   "2002-NM-257-AD@2004-09-28": "Airbus",
+   "2003-NM-66-AD@2004-09-27": "Embraer",
+   "2003-NM-119-AD@2004-08-31": "McDonnell Douglas",
+   "FAA-2004-18788@2004-08-05": "Boeing",
+   "2002-NM-224-AD@2004-07-21": "Airbus",
+   "FAA-2004-18583@2004-07-12": "Boeing",
+   "2001-NM-364-AD@2004-07-06": "Dassault Aviation",
+   "2002-NM-257-AD@2004-06-17": "Airbus",
+   "2002-CE-05-AD@2004-05-24": "Cessna",
+   "2000-NM-124-AD@2004-05-16": "Airbus",
+   "2002-NM-219-AD@2004-04-27": "Boeing",
+   "98-NM-11-AD@2004-04-21": "Boeing",
+   "2002-NM-224-AD@2004-03-16": "Airbus Industrie",
+   "2001-SW-33-AD@2004-03-10": "Eurocopter France",
+   "2003-NM-67-AD@2004-03-10": "Embraer",
+   "2002-NM-260-AD@2004-02-05": "BAE Systems",
+   "2003-NM-66-AD@2004-01-26": "Embraer",
+   "2002-CE-05-AD@2004-01-26": "Cessna",
+   "2003-NM-119-AD@2004-01-21": "McDonnell Douglas",
+   "2002-NM-352-AD@2003-12-17": "Embraer",
+   "FAA-2003-16645@2003-12-10": "Embraer",
+   "FAA-2003-16646@2003-12-10": "Boeing",
+   "FAA-2003-16647@2003-12-10": "McDonnell Douglas",
+   "86-ANE-12-AD@2003-11-25": "General Electric Company",
+   "2001-NM-237-AD@2003-11-24": "Boeing",
+   "2002-NM-219-AD@2003-11-03": "Boeing",
+   "2000-NM-168-AD@2003-10-29": "McDonnell Douglas",
+   "2003-NE-31-AD@2003-10-08": "Rolls-Royce plc",
+   "2002-CE-05-AD@2003-10-02": "Cessna",
+   "2002-CE-57-AD@2003-10-02": "Cessna",
+   "2002-NM-306-AD@2003-09-18": "McDonnell Douglas",
+   "2002-NM-09-AD@2003-09-17": "Airbus Industrie",
+   "2000-NM-192-AD@2003-09-07": "McDonnell Douglas",
+   "2003-CE-05-AD-W@2003-09-01": "Socata--Groupe Aerospatiale",
+   "2002-CE-57-AD@2003-07-31": "Cessna",
+   "2002-CE-05-AD@2003-07-31": "Cessna",
+   "98-NM-11-AD@2003-07-01": "Boeing",
+   "2001-NM-30-AD@2003-06-01": "Boeing",
+   "2002-CE-57-AD@2003-05-14": "Cessna",
+   "2002-CE-05-AD@2003-05-14": "Cessna",
+   "2000-NM-120-AD@2003-03-18": "Embraer",
+   "2003-NM-04-AD@2003-03-16": "Embraer",
+   "2003-CE-05-AD@2003-03-06": "Socata--Groupe Aerospatiale",
+   "2002-NM-219-AD@2003-03-03": "Boeing",
+   "2002-SW-31-AD@2003-02-25": "Bell Helicopter Textron",
+   "2001-NM-152-AD@2003-01-29": "McDonnell Douglas",
+   "2002-CE-27-AD-W@2002-12-23": "Mitsubishi Heavy Industries",
+   "2001-SW-33-AD@2002-12-17": "Eurocopter France",
+   "2001-NM-364-AD@2002-08-22": "Dassault Aviation",
+   "2001-NM-93-AD@2002-07-18": "Boeing",
+   "2001-NM-30-AD@2002-06-18": "Boeing",
+   "2002-NM-12-AD@2002-05-16": "Boeing",
+   "88-NM-145-AD@2002-04-04": "McDonnell Douglas",
+   "2001-NM-149-AD@2002-04-04": "McDonnell Douglas",
+   "2001-NM-40-AD@2002-01-08": "Boeing",
+   "98-CE-57-AD@2001-12-19": "Cessna",
+   "2001-NM-93-AD@2001-10-29": "Boeing",
+   "98-NM-36-AD@2001-10-08": "Lockheed",
+   "2001-NM-149-AD@2001-08-30": "McDonnell Douglas",
+   "98-NM-353-AD@2001-08-23": "Boeing",
+   "99-NE-47-AD@2001-08-23": "Rolls-Royce Corporation",
+   "99-NM-132-AD@2001-08-01": "Boeing",
+   "2000-NM-27-AD@2001-07-16": "Boeing",
+   "95-NM-215-AD@2001-07-09": "Boeing",
+   "90-ANE-25-AD@2001-06-20": "General Electric Company",
+   "99-NE-46@2001-05-24": "Rolls-Royce Corporation",
+   "97-ANE-59-AD@2001-05-20": "Pratt & Whitney",
+   "2000-NM-120-AD@2001-04-26": "Embraer"
+  },
+  "AD": {
+   "2026-20-03": "Airbus Helicopters",
+   "2026-20-04": "The Boeing Company",
+   "2026-20-05": "Airbus SAS",
+   "2026-20-07": "Leonardo S.p.a",
+   "2026-20-08": "Airbus Helicopters",
+   "2026-20-09": "Bombardier, Inc",
+   "2026-20-10": "The Boeing Company",
+   "2026-20-11": "Rolls-Royce Deutschland Ltd & Co KG",
+   "2026-20-12": "Engine Alliance",
+   "2026-20-13": "The Boeing Company",
+   "2026-20-14": "The Boeing Company",
+   "2026-20-15": "Airbus SAS",
+   "2026-20-16": "The Boeing Company",
+   "2026-21-01": "Elixir Aircraft",
+   "2026-21-02": "Airbus Helicopters Deutschland GmbH (AHD)",
+   "2026-21-03": "Airbus SAS",
+   "2026-21-04": "Rolls-Royce Deutschland Ltd & Co KG",
+   "2026-21-05": "MD Helicopters, LLC",
+   "2026-21-06": "Pratt & Whitney Division",
+   "2026-21-07": "The Boeing Company",
+   "2026-21-08": "The Boeing Company",
+   "2026-21-09": "Airbus Helicopters Deutschland GmbH (AHD)",
+   "2026-21-10": "Airbus Helicopters",
+   "2026-21-11": "General Electric Company",
+   "2026-21-12": "The Boeing Company",
+   "2026-21-13": "Ontic Engineering and Manufacturing, Inc. (Type Certificate Previously Held by Swearingen, Fairchild Aircraft, and M7 Aerospace)",
+   "2026-22-01": "Airbus Helicopters",
+   "2026-22-02": "Airbus SAS"
+  }
+ }
+}

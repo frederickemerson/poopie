@@ -1,0 +1,198 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Colour carries meaning here and nothing else. Green, red and amber are the
+   three enums.decision outcomes; they are never used for emphasis, hover or
+   decoration. Everything structural is greyscale plus one non-semantic accent.
+   --------------------------------------------------------------------------- */
+
+:root {
+  --c-bg: #0a0c10;
+  --c-raised: #10141b;
+  --c-sunken: #06080c;
+  --c-line: #1d232d;
+  --c-line-strong: #2d3644;
+  --c-ink: #e7ebf1;
+  --c-ink-2: #98a3b2;
+  --c-ink-3: #68727f;
+  --c-accent: #5b9dff;
+  --c-accent-dim: #1b3157;
+  --c-ok: #35c77d;
+  --c-ok-bg: #0d2a1d;
+  --c-no: #ff6262;
+  --c-no-bg: #2c1113;
+  --c-maybe: #f2ab2f;
+  --c-maybe-bg: #2d2008;
+  --c-hl: #3b2f06;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --c-bg: #f2f4f8;
+  --c-raised: #ffffff;
+  --c-sunken: #e7ebf1;
+  --c-line: #d7dde6;
+  --c-line-strong: #b4bfcd;
+  --c-ink: #0d1218;
+  --c-ink-2: #4d5868;
+  --c-ink-3: #727e8d;
+  --c-accent: #1c5fd6;
+  --c-accent-dim: #dbe7fb;
+  --c-ok: #117a46;
+  --c-ok-bg: #e2f5ea;
+  --c-no: #bf2730;
+  --c-no-bg: #fdeaea;
+  --c-maybe: #8f5806;
+  --c-maybe-bg: #fdf2dd;
+  --c-hl: #fdf0b8;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-raised: var(--c-raised);
+  --color-sunken: var(--c-sunken);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-ink: var(--c-ink);
+  --color-ink-2: var(--c-ink-2);
+  --color-ink-3: var(--c-ink-3);
+  --color-accent: var(--c-accent);
+  --color-accent-dim: var(--c-accent-dim);
+  --color-ok: var(--c-ok);
+  --color-ok-bg: var(--c-ok-bg);
+  --color-no: var(--c-no);
+  --color-no-bg: var(--c-no-bg);
+  --color-maybe: var(--c-maybe);
+  --color-maybe-bg: var(--c-maybe-bg);
+  --color-hl: var(--c-hl);
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+* {
+  border-color: var(--c-line);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--c-bg);
+  color: var(--c-ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv05", "ss03";
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+/* Dense instrument type scale. */
+.t-label {
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--c-ink-3);
+}
+.t-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  letter-spacing: -0.01em;
+}
+.t-body {
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.t-answer {
+  font-size: 15px;
+  line-height: 1.62;
+  letter-spacing: -0.003em;
+}
+
+:where(button, a, [tabindex], input, [role="tab"], [role="gridcell"]):focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+/* Hairline rules that survive both themes. */
+.rule-t {
+  box-shadow: inset 0 1px 0 var(--c-line);
+}
+
+/* Scrollbars, kept out of the way. */
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--c-line-strong);
+  border-radius: 9px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* The one decorative motion in the product: a verifier shimmer on a pending
+   answer row. It is disabled outright under reduced motion. */
+@keyframes scan {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
+.scanline::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 38%;
+  background: linear-gradient(90deg, transparent, var(--c-line-strong), transparent);
+  animation: scan 1.1s linear infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--ring-c) 60%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--ring-c) 0%, transparent);
+  }
+}
+.pulse-ring {
+  animation: pulse-ring 0.72s ease-out 2;
+}
+
+[data-reduced-motion="true"] .scanline::after,
+[data-reduced-motion="true"] .pulse-ring {
+  animation: none !important;
+}
+[data-reduced-motion="true"] * {
+  transition-duration: 0ms !important;
+  animation-duration: 0ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scanline::after,
+  .pulse-ring {
+    animation: none !important;
+  }
+}
+
+/* React Flow, themed to the instrument palette. */
+.react-flow__attribution {
+  display: none;
+}
+.react-flow__edge-path {
+  stroke: var(--c-line-strong);
+}
+.react-flow__handle {
+  opacity: 0;
+}

@@ -1,0 +1,96 @@
+{
+ "generated_at": "2026-10-31T03:14:54+00:00",
+ "nodes": {
+  "Docket": 328,
+  "NPRM": 431,
+  "AD": 28,
+  "Revision": 29,
+  "Paragraph": 353,
+  "ForeignAD": 16,
+  "ServiceBulletin": 55
+ },
+ "edges": {
+  "IN_DOCKET": 461,
+  "PROPOSED_BY": 22,
+  "HAS_REVISION": 29,
+  "HAS_PARAGRAPH": 353,
+  "ADOPTS_MCAI": 16,
+  "REFERENCES_SB": 63
+ },
+ "documents_seen": 29,
+ "revisions": 29,
+ "ads": 28,
+ "paragraph_structures": {
+  "labelled_headings": 29
+ },
+ "delegation": {
+  "ads_total": 28,
+  "ads_whose_current_revision_delegates_applicability": 10,
+  "ads_whose_current_revision_delegates_applicability_or_compliance": 25,
+  "pct_applicability": 35.7,
+  "pct_applicability_or_compliance": 89.3,
+  "revisions_delegating_applicability": 11,
+  "revisions_delegating_compliance": 26
+ },
+ "supersession": {
+  "edges": 0,
+  "corrections_same_amendment": 1,
+  "referenced_ads_outside_corpus": 5,
+  "dangling_sample": [
+   [
+    "2026-20119",
+    "2021-03-08"
+   ],
+   [
+    "2026-20680",
+    "2019-20-07"
+   ],
+   [
+    "2026-21278",
+    "2009-04-13"
+   ],
+   [
+    "2026-21331",
+    "2025-04-05"
+   ],
+   [
+    "2026-21686",
+    "2019-20-07"
+   ]
+  ]
+ },
+ "nprm": {
+  "rows": 431,
+  "unique_dockets": 322,
+  "rows_without_comments_due_date": 4,
+  "rows_with_multiple_dockets": [
+   372,
+   381
+  ],
+  "rows_without_docket": [],
+  "date_parse_failures": [],
+  "dockets_joined_to_a_final_rule": 22,
+  "dockets_with_no_final_rule_yet": 300
+ },
+ "foreign_authority_tokens": {
+  "European Union Aviation Safety Agency": 11,
+  "EASA": 4,
+  "Transport Canada": 1
+ },
+ "skipped_non_ad_rules": 0,
+ "skipped_non_ad_sample": [],
+ "xml_unavailable": [],
+ "parse_notes": [],
+ "dockets_queried_outside_window": 0,
+ "window": {
+  "since": "2026-10-01",
+  "until": "2026-10-31"
+ },
+ "fetch": {
+  "index_requests": 1,
+  "index_cache_hits": 0,
+  "xml_downloads": 29,
+  "xml_cache_hits": 0,
+  "xml_failures": []
+ }
+}
