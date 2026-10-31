@@ -235,41 +235,93 @@ def _extract_rules(
     }
 
 
+def _actions_from_payload(
+    paragraph: dict[str, Any], payload: Any
+) -> tuple[list[tuple[dict[str, Any], Any]], list[str]]:
+    """Build every valid Action in a payload; return the failures verbatim.
+
+    Actions are returned paired with the proposal they came from, because an
+    action's external_document is only processed once the action itself is
+    accepted. Nothing is appended to the result here: a retry must be able to
+    replace a paragraph's actions wholesale without leaving the first
+    attempt's half-built set behind.
+    """
+    if not isinstance(payload, dict):
+        return [], ["the model returned no JSON object for this paragraph"]
+    built: list[tuple[dict[str, Any], Any]] = []
+    failures: list[str] = []
+    for index, proposed in enumerate(payload.get("actions") or [], 1):
+        try:
+            action = records.build_action(paragraph, index, proposed)
+        except (ContractViolation, KeyError, TypeError) as exc:
+            failures.append(f"action {index}: {exc}")
+            continue
+        built.append((action, proposed))
+    return built, failures
+
+
 def _extract_actions(
     client: LLMClient, paragraphs: Sequence[dict[str, Any]], result: ExtractionResult
 ) -> dict[str, Any]:
     by_id = {p["paragraph_id"]: p for p in paragraphs}
-    responses = _complete_all(
+    first = _complete_all(
         client,
         [(p["paragraph_id"], schema.user_message(p)) for p in paragraphs],
         system=schema.ACTION_SYSTEM,
         json_schema=schema.action_schema(),
         label=LABEL_ACTIONS,
     )
-    rejected: dict[str, list[str]] = {}
+
+    accepted: dict[str, list[tuple[dict[str, Any], Any]]] = {}
+    pending: dict[str, list[str]] = {}
     for pid, paragraph in by_id.items():
-        payload = responses.get(pid)
-        if not isinstance(payload, dict):
-            rejected[pid] = ["the model returned no JSON object for this paragraph"]
-            continue
-        for index, proposed in enumerate(payload.get("actions") or [], 1):
-            try:
-                action = records.build_action(paragraph, index, proposed)
-            except (ContractViolation, KeyError, TypeError) as exc:
-                rejected.setdefault(pid, []).append(f"action {index}: {exc}")
-                continue
+        built, failures = _actions_from_payload(paragraph, first.get(pid))
+        accepted[pid] = built
+        if failures:
+            pending[pid] = failures
+
+    # One retry with the failures fed back, exactly as the rules pass gets.
+    # Without it a truncated or malformed action response lost that
+    # paragraph's actions silently, and truncation is a failure a retry
+    # actually fixes -- a long variant list has overflowed max_tokens before.
+    rejected = dict(pending)
+    if pending:
+        second = _complete_all(
+            client,
+            [
+                (pid, schema.action_retry_message(by_id[pid], fails))
+                for pid, fails in pending.items()
+            ],
+            system=schema.ACTION_SYSTEM,
+            json_schema=schema.action_schema(),
+            label=f"{LABEL_ACTIONS}_retry",
+        )
+        for pid in list(pending):
+            built, failures = _actions_from_payload(by_id[pid], second.get(pid))
+            if built:
+                accepted[pid] = built
+            if failures:
+                rejected[pid] = failures
+            else:
+                rejected.pop(pid, None)
+
+    for pid, paragraph in by_id.items():
+        for action, proposed in accepted.get(pid) or []:
             result.actions.append(action)
-            doc = proposed.get("external_document")
-            if doc:
-                nodes, delegations, failures = _externals_from_payload(
-                    paragraph, {"docs": [doc]}, records.SCOPE_COMPLIANCE, "docs"
-                )
-                result.external_nodes.extend(nodes)
-                result.delegations.extend(delegations)
-                if failures:
-                    rejected.setdefault(pid, []).extend(failures)
+            doc = proposed.get("external_document") if isinstance(proposed, dict) else None
+            if not doc:
+                continue
+            nodes, delegations, failures = _externals_from_payload(
+                paragraph, {"docs": [doc]}, records.SCOPE_COMPLIANCE, "docs"
+            )
+            result.external_nodes.extend(nodes)
+            result.delegations.extend(delegations)
+            if failures:
+                rejected.setdefault(pid, []).extend(failures)
+
     return {
         "paragraphs": len(by_id),
+        "retried_paragraphs": sorted(pending),
         "paragraphs_with_rejected_action": sorted(rejected),
         "rejected_actions": sum(len(v) for v in rejected.values()),
     }

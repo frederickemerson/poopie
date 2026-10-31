@@ -233,3 +233,20 @@ def retry_message(paragraph: dict[str, Any], failures: list[str]) -> str:
         f"If you cannot find a verbatim span for a condition, emit that condition with "
         f'operator "unparsed" and say so in unparsed_reason instead of adjusting the quote.'
     )
+
+
+def action_retry_message(paragraph: dict[str, Any], failures: list[str]) -> str:
+    """The action pass's retry. Same contract as ``retry_message``, different
+    escape hatch: an action's unclassifiable deadline is ``UNPARSED``
+    compliance_basis, not an ``unparsed`` operator.
+    """
+    listed = "\n".join(f"- {f}" for f in failures)
+    return (
+        f"{user_message(paragraph)}\n\n"
+        f"Your previous answer was rejected:\n{listed}\n\n"
+        f"Copy each source_quote character for character out of the paragraph text "
+        f"above: the shortest span carrying the action and its time. If you cannot "
+        f'find a verbatim span, or cannot classify the deadline, use "UNPARSED" for '
+        f"compliance_basis rather than adjusting the quote or guessing a basis. If "
+        f"the paragraph states no action of its own, return an empty list."
+    )
