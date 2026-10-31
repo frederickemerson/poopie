@@ -37,10 +37,15 @@ export function VerdictSpecimen() {
       </div>
 
       <ul className="flex flex-col">
-        {CONDITIONS.map((c) => (
+        {CONDITIONS.map((c, i) => (
           <li
             key={c.field}
-            className="flex items-baseline gap-2.5 border-b border-line px-3.5 py-2.5 last:border-b-0"
+            /* Each condition lands after the one above it, so the eye reads the
+               proof in the order the engine evaluated it. Same keyframes as the
+               pipeline: ends at the natural state, so a browser that never runs
+               them shows the finished card. */
+            className="pipe-node flex items-baseline gap-2.5 border-b border-line px-3.5 py-2.5 last:border-b-0"
+            style={{ animationDelay: `${0.26 + 0.09 * i}s` }}
           >
             <span
               aria-hidden
