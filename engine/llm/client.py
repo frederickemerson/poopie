@@ -205,10 +205,16 @@ class LLMClient:
             try:
                 parsed = json.loads(text)
             except json.JSONDecodeError:
-                # Structured output should be valid JSON. Surface it rather than
-                # silently returning None, which would look like "no rules found".
+                # Truncation is by far the commonest cause and looks identical to
+                # malformed output, so name it rather than making the caller guess.
+                if getattr(response, "stop_reason", None) == "max_tokens":
+                    raise ValueError(
+                        f"{label}: output hit max_tokens={max_tokens} and the JSON was cut "
+                        f"off mid-structure. Raise max_tokens; do not parse the fragment."
+                    )
                 raise ValueError(
-                    f"{label}: model returned non-JSON under a json_schema output_config: {text[:300]!r}"
+                    f"{label}: model returned non-JSON under a json_schema output_config "
+                    f"(stop_reason={getattr(response, 'stop_reason', None)!r}): {text[:300]!r}"
                 )
 
         usage = Usage.from_response(response.usage)
@@ -243,6 +249,10 @@ class LLMClient:
         pending: list[dict[str, Any]] = []
         out: dict[str, Completion] = {}
         keys: dict[str, str] = {}
+        # The Batch API constrains custom_id to ^[a-zA-Z0-9_-]{1,64}$, but our
+        # natural ids are paragraph ids like "2026-21902#(o)". Submit a safe
+        # surrogate and map results back, rather than mangling the caller's ids.
+        safe_to_real: dict[str, str] = {}
 
         for custom_id, kw in requests:
             key = self._key(
@@ -265,9 +275,11 @@ class LLMClient:
                     cost_usd=0.0, cached_hit=True, model=model,
                 )
                 continue
+            safe_id = f"r{len(pending):05d}_{key[:16]}"
+            safe_to_real[safe_id] = custom_id
             pending.append(
                 {
-                    "custom_id": custom_id,
+                    "custom_id": safe_id,
                     "params": self._build_params(
                         model=model,
                         system=kw["system"],
@@ -290,7 +302,7 @@ class LLMClient:
             time.sleep(poll_seconds)
 
         for result in self.client.messages.batches.results(batch.id):
-            cid = result.custom_id
+            cid = safe_to_real.get(result.custom_id, result.custom_id)
             if result.result.type != "succeeded":
                 # Do not silently drop: the caller must see which ids failed.
                 out[cid] = Completion(

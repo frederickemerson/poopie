@@ -170,7 +170,7 @@ def _sources() -> list[Path]:
 
 def test_no_source_file_invents_a_refusal_code():
     """Catch a worker writing e.g. 'NEEDS_CONFIG' or 'NO_DATA' instead of a contract code."""
-    allowed = set(enum("refusal_code"))
+    allowed = _all_enum_values()
     shape = re.compile(r"[\"'](NEED[A-Z_]*|NO_[A-Z_]+|CANNOT_[A-Z_]+|OUT_OF_[A-Z_]+|SUPERSED[A-Z_]*|EXTERNAL_[A-Z_]+)[\"']")
     offenders = []
     for path in _sources():
@@ -183,8 +183,18 @@ def test_no_source_file_invents_a_refusal_code():
     assert not offenders, "use contract refusal codes only:\n  " + "\n  ".join(offenders)
 
 
+def _all_enum_values() -> set[str]:
+    """Every value the contract defines, across all enums.
+
+    The point of these scanners is to catch *invented* vocabulary. A value that
+    legitimately belongs to another enum (UNKNOWN is both a document_stage and
+    an authority) is not an invention, so the union is the right allow-list.
+    """
+    return {v for values in contract()["enums"].values() for v in values}
+
+
 def test_no_source_file_invents_a_decision_value():
-    allowed = set(enum("decision"))
+    allowed = _all_enum_values()
     shape = re.compile(r"[\"'](APPLIES[A-Z_]*|DOES_NOT[A-Z_]*|NOT_APPLICABLE|AFFECTED|UNAFFECTED|UNKNOWN)[\"']")
     offenders = []
     for path in _sources():

@@ -93,6 +93,7 @@
       "SUPERSEDED",
       "EXTERNAL_SOURCE_REQUIRED"
     ],
+    "document_stage": ["PROPOSED", "ADOPTED_NOT_YET_EFFECTIVE", "EFFECTIVE", "SUPERSEDED", "UNKNOWN"],
     "authority": ["FAA", "EASA", "TCCA", "ANAC", "CAAC", "UNKNOWN"],
     "source": ["nprm_spreadsheet", "federal_register", "opensky", "derived"]
   },
@@ -169,6 +170,8 @@
     "Aircraft fields absent from the source dataset are null and MUST yield CANNOT_DETERMINE, never a guess.",
     "A Revision whose applicability delegates to a ForeignAD or ServiceBulletin with held=false MUST refuse EXTERNAL_SOURCE_REQUIRED rather than infer applicability.",
     "The rules engine, not the LLM, produces every value in enums.decision.",
-    "No UI animation may render a result that has not passed verification."
+    "No UI animation may render a result that has not passed verification.",
+    "An NPRM is a PROPOSAL and can never be cited as a current legal obligation. Only Revision paragraphs are citable; NPRM text must never enter the citable paragraph index.",
+    "Every answer that states a requirement MUST carry the document_stage of the revision it came from. An AD adopted but not yet effective does not yet impose an obligation, and saying so is part of being correct."
   ]
 }

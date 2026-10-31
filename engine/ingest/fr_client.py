@@ -17,6 +17,7 @@ never re-downloaded.
 
 from __future__ import annotations
 
+import calendar
 import concurrent.futures as futures
 import json
 import time
@@ -144,7 +145,10 @@ class FederalRegisterClient:
         for year in range(year_start, year_end + 1):
             for month in range(1, 13):
                 first = f"{year}-{month:02d}-01"
-                last_day = 31 if month in (1, 3, 5, 7, 8, 10, 12) else 30 if month != 2 else 29
+                # calendar.monthrange is the authoritative answer for every year;
+                # a hand-written day table got February wrong in non-leap years
+                # and the API rejected the resulting 2021-02-29 with HTTP 400.
+                last_day = calendar.monthrange(year, month)[1]
                 last = f"{year}-{month:02d}-{last_day:02d}"
                 if last < gte or first > lte:
                     continue

@@ -22,8 +22,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from contracts.contract import validate_event
+from engine.api.applicability import ApplicabilityStore, decide_for_query, fleet_matrix
+from engine.graph.stage import annotate
 from engine.llm.client import LLMClient, LLMUnavailable, have_api_key
-from engine.llm.ledger import MODEL_ANSWER, CostLedger, default_cap_usd
+from engine.llm.ledger import CostLedger, default_cap_usd
 from engine.retrieval.corpus import load_corpus
 from engine.retrieval.entities import extract_entities
 from engine.retrieval.index import load_index
@@ -47,6 +49,7 @@ class _State:
     index = None
     ledger: CostLedger | None = None
     client: LLMClient | None = None
+    applicability: ApplicabilityStore | None = None
     error: str | None = None
 
 
@@ -63,6 +66,7 @@ def _startup() -> None:
         return
     STATE.ledger = CostLedger(cap_usd=default_cap_usd())
     STATE.client = LLMClient(STATE.ledger, offline=not have_api_key())
+    STATE.applicability = ApplicabilityStore.load()
 
 
 def _plain(obj: Any) -> Any:
@@ -76,6 +80,22 @@ def _plain(obj: Any) -> Any:
     if isinstance(obj, (str, int, float, bool)) or obj is None:
         return obj
     return str(obj)
+
+
+def _revision_stage(revision_id: str | None) -> dict[str, Any] | None:
+    """Legal stage of the revision an answer came from, or None if unknown."""
+    if not revision_id or STATE.corpus is None:
+        return None
+    revisions = getattr(STATE.corpus, "revisions", None) or {}
+    record = revisions.get(revision_id) if isinstance(revisions, dict) else None
+    if record is None and not isinstance(revisions, dict):
+        record = next(
+            (r for r in revisions if getattr(r, "revision_id", None) == revision_id), None
+        )
+    if record is None:
+        return None
+    as_dict = record if isinstance(record, dict) else getattr(record, "__dict__", {})
+    return annotate(dict(as_dict))
 
 
 def _sse(name: str, payload: dict[str, Any]) -> str:
@@ -137,34 +157,54 @@ def _stream(q: str, tail_number: str | None) -> Iterator[str]:
         },
     )
 
-    # 4. The gate: code decides whether this question can be answered at all.
+    # 4. Applicability: the rules engine, not the model, decides. Pure code.
     t0 = time.perf_counter()
-    gate = evaluate_gate(STATE.corpus, entities, result, plan=plan)
-    timings["applicability"] = (time.perf_counter() - t0) * 1000
-    yield _sse(
-        "decision",
-        {
-            "decision": _plain(getattr(gate, "decision", None)),
-            "fired_rule_ids": _plain(getattr(gate, "fired_rule_ids", []) or []),
-            "unknown_fields": _plain(getattr(gate, "unknown_fields", []) or []),
-            "proof_tree": _plain(getattr(gate, "proof_tree", None)),
-            "stage_ms": round(timings["applicability"], 2),
-        },
+    outcome = decide_for_query(
+        STATE.applicability,
+        tail_number=tail_number,
+        entities=entities,
+        plan=plan,
+        result=result,
     )
+    gate = evaluate_gate(
+        STATE.corpus, entities, result,
+        plan=plan,
+        rules_decision=outcome.decision,
+    )
+    timings["applicability"] = (time.perf_counter() - t0) * 1000
+    stage_ms = round(timings["applicability"], 2)
+
+    if outcome.available:
+        payload = outcome.decision.sse_payload(stage_ms)
+        # An AD adopted but not yet effective imposes no obligation today.
+        # Stating the stage is part of being correct, not a footnote.
+        tree = payload.get("proof_tree")
+        if isinstance(tree, dict):
+            tree["stage"] = _revision_stage(outcome.decision.revision_id)
+        yield _sse("decision", payload)
+    else:
+        # No decision is itself information: say why, never emit a guess.
+        yield _sse(
+            "decision",
+            {
+                "decision": None,
+                "fired_rule_ids": [],
+                "unknown_fields": [],
+                "proof_tree": {"unavailable": outcome.reason},
+                "stage_ms": stage_ms,
+            },
+        )
 
     # A blocking refusal ends the turn here: no prose is generated at all,
     # which is the point - we never write a sentence we cannot support.
-    for refusal in (getattr(gate, "refusals", None) or []):
-        yield _sse(
-            "refusal",
-            {
-                "code": refusal.code,
-                "detail": refusal.detail,
-                "resolvable_by": refusal.resolvable_by,
-                "evidence_paragraph_ids": list(refusal.evidence_paragraph_ids),
-            },
-        )
-    if getattr(gate, "blocks_answer", False):
+    refusals = list(gate.payloads())
+    engine_refusal = outcome.decision.refusal_payload() if outcome.available else None
+    if engine_refusal and not any(r["code"] == engine_refusal["code"] for r in refusals):
+        refusals.append(engine_refusal)
+    for refusal in refusals:
+        yield _sse("refusal", refusal)
+
+    if not gate.answer_allowed or (engine_refusal and engine_refusal.get("code") != "SUPERSEDED"):
         yield _sse(
             "done",
             {
@@ -202,6 +242,14 @@ def health() -> dict[str, Any]:
         "error": STATE.error,
         "spend": STATE.ledger.summary() if STATE.ledger else None,
     }
+
+
+@app.get("/blast/{revision_id}")
+def blast(revision_id: str) -> dict[str, Any]:
+    """Every fleet aircraft's decision for one revision, for BlastRadius."""
+    if STATE.applicability is None:
+        return {"error": STATE.error or "applicability store not loaded"}
+    return fleet_matrix(STATE.applicability, revision_id)
 
 
 @app.post("/stream")

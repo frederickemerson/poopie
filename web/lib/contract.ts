@@ -24,6 +24,9 @@ export const INTENT: readonly Intent[] = ["applicability", "requirement", "revis
 export type RefusalCode = "NEED_CONFIG" | "CANNOT_DETERMINE" | "NO_EVIDENCE" | "OUT_OF_SCOPE" | "SUPERSEDED" | "EXTERNAL_SOURCE_REQUIRED";
 export const REFUSAL_CODE: readonly RefusalCode[] = ["NEED_CONFIG", "CANNOT_DETERMINE", "NO_EVIDENCE", "OUT_OF_SCOPE", "SUPERSEDED", "EXTERNAL_SOURCE_REQUIRED"] as const;
 
+export type DocumentStage = "PROPOSED" | "ADOPTED_NOT_YET_EFFECTIVE" | "EFFECTIVE" | "SUPERSEDED" | "UNKNOWN";
+export const DOCUMENT_STAGE: readonly DocumentStage[] = ["PROPOSED", "ADOPTED_NOT_YET_EFFECTIVE", "EFFECTIVE", "SUPERSEDED", "UNKNOWN"] as const;
+
 export type Authority = "FAA" | "EASA" | "TCCA" | "ANAC" | "CAAC" | "UNKNOWN";
 export const AUTHORITY: readonly Authority[] = ["FAA", "EASA", "TCCA", "ANAC", "CAAC", "UNKNOWN"] as const;
 

@@ -44,7 +44,10 @@ from .vocab import (  # noqa: E402
 # ceiling used to ask the ledger whether a pass is affordable before it starts.
 PER_ITEM_USD = 0.0005
 BATCH_THRESHOLD = 50
-MAX_TOKENS = 2048
+# An applicability paragraph can enumerate dozens of engine or airframe
+# variants (one GE CF34 AD listed enough to overflow 2048 and truncate the JSON
+# mid-array). Truncation here silently loses rules, so the ceiling is generous.
+MAX_TOKENS = 8192
 LABEL_RULES = "extract_rules"
 LABEL_ACTIONS = "extract_actions"
 OFFLINE_REASON = (
