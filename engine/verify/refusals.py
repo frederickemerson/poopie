@@ -41,6 +41,7 @@ from engine.verify.thresholds import NO_EVIDENCE_COSINE_MIN  # noqa: E402
 CODE_NO_EVIDENCE = "NO_EVIDENCE"
 CODE_OUT_OF_SCOPE = "OUT_OF_SCOPE"
 CODE_SUPERSEDED = "SUPERSEDED"
+CODE_NEED_CONFIG = "NEED_CONFIG"
 
 
 def semantics(code: str) -> dict[str, Any]:
@@ -174,6 +175,35 @@ def not_an_ad_question(
         f"and is not answerable from airworthiness directive text. This engine covers "
         f"FAA AD applicability, requirements and revision history only.",
         evidence_paragraph_ids,
+        allow_empty_evidence=not evidence_paragraph_ids,
+    )
+
+
+def under_specified_ad_question(
+    intent: str | None, evidence_paragraph_ids: list[str]
+) -> Refusal:
+    """An airworthiness directive question that names no directive and no aircraft.
+
+    The exact complement of not_an_ad_question, decided from the same
+    structured plan output rather than from the words in the question: the
+    plan named nothing and the entity pass found nothing, but the intent is
+    one of the AD-specific ones rather than the catch-all, so the question IS
+    in scope and simply has not said what it is about.
+
+    That distinction is the whole point of emitting NEED_CONFIG here instead
+    of NO_EVIDENCE. NO_EVIDENCE says the corpus does not hold the answer, which
+    is a statement about us and sends the engineer away. The truth is that the
+    person asking can clear this in seconds by naming the AD or the tail
+    number, and the refusal should say so.
+    """
+    asked = f" {intent}" if intent else ""
+    return build(
+        CODE_NEED_CONFIG,
+        f"This is an airworthiness directive{asked} question, but it names neither a "
+        f"directive nor an aircraft, so there is nothing to look up yet. Name the AD "
+        f"number, the docket, or a tail number and ask again.",
+        evidence_paragraph_ids,
+        resolver="the engineer names the directive or the aircraft",
         allow_empty_evidence=not evidence_paragraph_ids,
     )
 

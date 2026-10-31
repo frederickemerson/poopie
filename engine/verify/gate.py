@@ -160,9 +160,10 @@ def evaluate_gate(
         )
         return gate
 
-    plan_names_nothing = (
+    # The question identifies nothing this corpus is keyed on: no directive, no
+    # docket, no aircraft, from either the plan or the entity pass.
+    names_nothing = (
         plan is not None
-        and plan.intent == "search"
         and not plan.ad_number
         and not plan.docket_id
         and not any((plan.aircraft or {}).values())
@@ -170,20 +171,35 @@ def evaluate_gate(
         and not entities.models
         and not entities.typecodes
     )
+    # "search" is the plan's catch-all intent; the other four are AD-specific.
+    # That enum is the only thing separating "this is not an AD question" from
+    # "this is an AD question that has not said which AD", and the two want
+    # opposite refusals: one sends the engineer elsewhere, the other tells them
+    # what to type. Both are read off the plan, never off the wording.
+    plan_names_nothing = names_nothing and plan.intent == "search"
+    under_specified = names_nothing and plan.intent != "search"
     below_floor = result.top_cosine < cosine_min
 
     if plan_names_nothing and below_floor:
         gate.refusals.append(R.not_an_ad_question(plan.topic, evidence))
         return gate
+    if under_specified and below_floor:
+        gate.refusals.append(R.under_specified_ad_question(plan.intent, evidence))
+        return gate
     if below_floor:
+        # Recorded before the return, not after it. This note sat below the
+        # NO_EVIDENCE return and so could never be reached, which hid exactly
+        # the case it was written to flag: with no plan there is nothing to
+        # tell an out-of-scope question apart from an under-specified one, and
+        # NO_EVIDENCE becomes a catch-all for both.
+        if plan is None and not entities.has_identifier:
+            gate.notes.append("no query plan: OUT_OF_SCOPE could not be distinguished")
         gate.refusals.append(
             R.nothing_above_threshold(
                 result.top_cosine, evidence, corpus_size=corpus_size
             )
         )
         return gate
-    if plan is None and not entities.has_identifier and below_floor:
-        gate.notes.append("no query plan: OUT_OF_SCOPE could not be distinguished")
 
     if rules_decision is not None:
         payload = getattr(rules_decision, "refusal", None)
