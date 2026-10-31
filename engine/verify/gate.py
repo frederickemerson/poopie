@@ -148,6 +148,31 @@ def _model_only_subject(entities: Entities, plan: QueryPlan | None) -> str | Non
     return designation or None
 
 
+def applicability_asked(entities: Entities, plan: QueryPlan | None) -> bool:
+    """Whether this question asks for an applicability verdict at all.
+
+    The rules engine runs against whatever revision retrieval surfaced, so its
+    refusal is available on every query. Surfacing it unconditionally meant a
+    corpus question -- "which ADs were issued in 2025" -- was answered with
+    "Applicability is defined in EASA AD 2023-0154R1 ... Applicability cannot be
+    decided for any airplane", naming a document the reader never asked about.
+    A refusal that names an unrelated document is worse than no answer: it reads
+    as a fact about their question.
+
+    Read from the entity pass and the plan's own structured fields, never the
+    wording. A null plan keeps the old behaviour rather than silently dropping
+    refusals on the path where there is nothing to classify with.
+    """
+    if entities.tail_numbers or entities.serial_numbers:
+        return True
+    if plan is None:
+        return True
+    if plan.intent in ("applicability", "fleet_impact"):
+        return True
+    aircraft = plan.aircraft or {}
+    return bool(aircraft.get("tail_number") or aircraft.get("serial_number"))
+
+
 def evaluate_gate(
     corpus: Corpus,
     entities: Entities,
@@ -235,7 +260,7 @@ def evaluate_gate(
         )
         return gate
 
-    if rules_decision is not None:
+    if rules_decision is not None and applicability_asked(entities, plan):
         payload = getattr(rules_decision, "refusal", None)
         if payload:
             repaired = repair_evidence(dict(payload), evidence)

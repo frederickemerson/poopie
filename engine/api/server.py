@@ -44,7 +44,7 @@ from engine.retrieval.layout import default_corpus_paths
 from engine.retrieval.index import load_index
 from engine.retrieval.plan import plan_query
 from engine.retrieval.search import search
-from engine.verify.gate import evaluate_gate
+from engine.verify.gate import applicability_asked, evaluate_gate
 from engine.verify.refusals import resolvable_by as refusal_resolver
 from engine.verify.terms import subject_terms
 from engine.verify.verifier import verify
@@ -409,7 +409,18 @@ def _stream(
     # A blocking refusal ends the turn here: no prose is generated at all,
     # which is the point - we never write a sentence we cannot support.
     refusals = list(gate.payloads())
-    engine_refusal = outcome.decision.refusal_payload() if outcome.available else None
+    # The rules engine runs against whatever revision retrieval surfaced, so it
+    # has a refusal available on nearly every query. Appending it regardless of
+    # what was asked answered "what can you do" with "Applicability is defined
+    # in EASA AD 2023-0154R1 ... cannot be decided for any airplane" -- a
+    # refusal naming a document the reader never mentioned, which reads as a
+    # fact about their question. The gate applies the same test; this is the
+    # second path to the same payload and needs it too.
+    engine_refusal = (
+        outcome.decision.refusal_payload()
+        if outcome.available and applicability_asked(entities, plan)
+        else None
+    )
     if engine_refusal and not any(r["code"] == engine_refusal["code"] for r in refusals):
         refusals.append(engine_refusal)
 
